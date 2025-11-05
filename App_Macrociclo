@@ -1,0 +1,1679 @@
+import React, { useState, useMemo, useEffect } from 'react';
+// NOVO: Imports do Firebase
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, doc, setDoc, onSnapshot, setLogLevel } from 'firebase/firestore';
+
+
+// --- Ícones SVG Inline ---
+const PlusIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="12" y1="5" x2="12" y2="19" />
+    <line x1="5" y1="12" x2="19" y2="12" />
+  </svg>
+);
+
+const TrashIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400 group-hover:text-red-500">
+    <path d="M3 6h18" />
+    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+  </svg>
+);
+
+const EditIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400 group-hover:text-blue-400">
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+  </svg>
+);
+
+const CheckIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-500">
+    <path d="M20 6 9 17l-5-5" />
+  </svg>
+);
+
+const XIcon = (props) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    width={props.width || 14} 
+    height={props.height || 14} 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round" 
+    className={props.className || "text-red-500"}
+  >
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+);
+
+
+// --- Funções Utilitárias Globais ---
+
+const formatDate = (dateString) => {
+  if (!dateString) return 'N/A';
+  try {
+    const [year, month, day] = dateString.split('-');
+    if (!day || !month || !year) return dateString;
+    return `${day}/${month}/${year}`;
+  } catch (e) {
+    return dateString;
+  }
+};
+
+const daysBetween = (date1, date2) => {
+  const d1 = new Date(date1);
+  const d2 = new Date(date2);
+  if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 0;
+  
+  const utc1 = Date.UTC(d1.getFullYear(), d1.getMonth(), d1.getDate());
+  const utc2 = Date.UTC(d2.getFullYear(), d2.getMonth(), d2.getDate());
+
+  return (utc2 - utc1) / (1000 * 60 * 60 * 24);
+};
+
+const stringToColor = (str, colors) => {
+  if (!str) return colors[0];
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % colors.length;
+  return colors[index];
+};
+
+const getAcronym = (str) => {
+  if (!str) return '';
+  const match = str.match(/\(([^)]+)\)/);
+  if (match) return match[1];
+  const plainStr = str.replace(/ *\([^)]*\) */g, "");
+  if (plainStr.length <= 3) return plainStr.toUpperCase();
+  const initials = plainStr.split(' ').map(w => w[0]).join('');
+  if (initials.length > 1 && initials.length <= 3) return initials.toUpperCase();
+  return plainStr.slice(0, 3).toUpperCase();
+};
+
+
+// --- NOVO: Configuração do Firebase ---
+// Estas variáveis são injetadas pelo ambiente de hosting
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-planer-app';
+
+let app;
+let db;
+let auth;
+
+try {
+  app = initializeApp(firebaseConfig);
+  db = getFirestore(app);
+  auth = getAuth(app);
+  setLogLevel('Debug');
+} catch (e) {
+  console.error("Erro ao inicializar Firebase:", e);
+}
+
+
+// --- Componentes da UI ---
+
+/**
+ * Cabeçalho da Aplicação
+ * ATUALIZADO: Mostrar o userId
+ */
+function AppHeader({ userId }) {
+  const btnDisabled = "px-2 py-1 text-xs bg-gray-800 text-gray-500 rounded-md cursor-not-allowed flex items-center gap-1.5";
+  return (
+    <div className="flex flex-col md:flex-row justify-end items-center gap-2 mb-3 p-3 bg-gray-900 rounded-lg shadow-lg">
+      <div className="flex-1 text-left">
+        <h1 className="text-lg font-bold text-white">
+          Planer Taekwondo
+        </h1>
+        {/* NOVO: Mostrar o ID do Utilizador */}
+        {userId ? (
+          <p className="text-[10px] font-mono text-gray-500" title="Este é o seu ID de conta único">
+            ID do Treinador: {userId}
+          </p>
+        ) : (
+          <p className="text-[10px] text-yellow-400">
+            A autenticar...
+          </p>
+        )}
+      </div>
+      <button className={btnDisabled} disabled>Importar CSV</button>
+      <button className={btnDisabled} disabled>Exportar CSV</button>
+      <button className={btnDisabled} disabled>Guardar JSON</button>
+      <button className={btnDisabled} disabled>Imprimir</button>
+    </div>
+  );
+}
+
+/**
+ * Coluna para Eventos (Objetivos, Competições, etc.)
+ */
+function EventColumn({ title, items = [], onTitleChange, onItemsChange }) {
+  const [newDesc, setNewDesc] = useState('');
+  const [newDate, setNewDate] = useState(''); 
+  const [editingItemId, setEditingItemId] = useState(null);
+  const [editDesc, setEditDesc] = useState('');
+  const [editDate, setEditDate] = useState(''); 
+
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [currentTitle, setCurrentTitle] = useState(title || '');
+  
+  // Sincronizar o título se a prop mudar (quando os dados carregam da DB)
+  useEffect(() => {
+    setCurrentTitle(title || '');
+  }, [title]);
+
+  const handleAdd = () => {
+    if (newDesc.trim() === '') return; 
+    const newItem = {
+      id: Date.now(),
+      desc: newDesc.trim(),
+      date: newDate,
+    };
+    onItemsChange([...items, newItem]);
+    setNewDesc('');
+    setNewDate('');
+  };
+
+  const handleRemove = (id) => {
+    onItemsChange(items.filter(item => item.id !== id));
+  };
+
+  const handleStartEdit = (item) => {
+    setEditingItemId(item.id);
+    setEditDesc(item.desc);
+    setEditDate(item.date); 
+  };
+
+  const handleCancelEdit = () => {
+    setEditingItemId(null);
+    setEditDesc('');
+    setEditDate('');
+  };
+
+  const handleSaveEdit = (id) => {
+    if (editDesc.trim() === '') return;
+    onItemsChange(items.map(item =>
+      item.id === id ? { ...item, desc: editDesc.trim(), date: editDate } : item
+    ));
+    setEditingItemId(null);
+    setEditDesc('');
+    setEditDate('');
+  };
+
+  const handleStartEditTitle = () => {
+    setIsEditingTitle(true);
+  };
+
+  const handleSaveTitle = () => {
+    if (currentTitle.trim() === '') return;
+    onTitleChange(currentTitle.trim());
+    setIsEditingTitle(false);
+  };
+
+  const handleCancelEditTitle = () => {
+    setIsEditingTitle(false);
+    setCurrentTitle(title || '');
+  };
+
+
+  let buttonTitle = 'Item';
+  if (title) {
+    if (title.toUpperCase() === "COMPETIÇÕES") buttonTitle = "COMPETIÇÃO";
+    else if (title.endsWith('S')) buttonTitle = title.slice(0, -1);
+    else buttonTitle = title;
+  }
+
+  const safeTitle = title || 'Itens';
+
+  return (
+    <div className="bg-gray-800 p-3 rounded-lg shadow-md flex flex-col h-full">
+      {/* Cabeçalho da Coluna (Editável) */}
+      <div className="flex items-center justify-center mb-3 min-h-[26px]">
+        {isEditingTitle ? (
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={currentTitle}
+              onChange={(e) => setCurrentTitle(e.target.value)}
+              className="input-base text-base"
+              autoFocus
+            />
+            <button onClick={handleSaveTitle}><CheckIcon /></button>
+            <button onClick={handleCancelEditTitle}><XIcon /></button>
+          </div>
+        ) : (
+          <>
+            <h3 className="text-base font-semibold text-white text-center flex-grow">{safeTitle}</h3>
+            <button onClick={handleStartEditTitle} className="group text-sm text-gray-500 hover:text-blue-400" title="Editar Título">
+              <EditIcon />
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Lista de Itens */}
+      <div className="space-y-1.5 mb-3 flex-grow max-h-40 overflow-y-auto min-h-[30px]">
+        {items.length === 0 && <span className="text-xs text-gray-500 text-center block">Sem {safeTitle.toLowerCase()}</span>}
+        {items.map(item => (
+          <div key={item.id} className="bg-gray-700 p-1.5 rounded">
+            {editingItemId === item.id ? (
+              // Modo de Edição
+              <div className="space-y-1.5">
+                <input
+                  type="text"
+                  value={editDesc}
+                  onChange={(e) => setEditDesc(e.target.value)}
+                  className="input-base"
+                />
+                <input
+                  type="date"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  className="input-base"
+                />
+                <div className="flex gap-2 justify-end">
+                  <button onClick={handleCancelEdit} className="text-[11px] text-gray-400 hover:text-white">Cancelar</button>
+                  <button onClick={() => handleSaveEdit(item.id)} className="text-[11px] text-green-500 hover:text-green-400">Guardar</button>
+                </div>
+              </div>
+            ) : (
+              // Modo de Visualização
+              <div className="flex justify-between items-center group">
+                <div>
+                  <p className="text-xs text-gray-100">{item.desc}</p>
+                  <p className="text-[11px] text-gray-400">
+                    {item.date 
+                      ? new Date(item.date).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' }) 
+                      : 'Sem data'}
+                  </p>
+                </div>
+                <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => handleStartEdit(item)}><EditIcon /></button>
+                  <button onClick={() => handleRemove(item.id)}><TrashIcon /></button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Formulário de Adicionar */}
+      <div className="space-y-1.5 border-t border-gray-700 pt-3">
+        <label htmlFor={`new-desc-${safeTitle}`} className="text-[11px] font-medium text-gray-400">Descrição</label>
+        <input
+          type="text"
+          id={`new-desc-${safeTitle}`}
+          value={newDesc}
+          onChange={(e) => setNewDesc(e.target.value)}
+          placeholder="Nova descrição..."
+          className="input-base"
+        />
+        <label htmlFor={`new-date-${safeTitle}`} className="text-[11px] font-medium text-gray-400">Data</label>
+        <input
+          type="date"
+          id={`new-date-${safeTitle}`}
+          value={newDate}
+          onChange={(e) => setNewDate(e.target.value)}
+          className="input-base"
+        />
+        <button
+          onClick={handleAdd}
+          className="w-full bg-blue-600 text-white p-1.5 rounded-md text-xs font-medium hover:bg-blue-500 flex items-center justify-center gap-1 disabled:bg-gray-600"
+          disabled={newDesc.trim() === ''}
+        >
+          <PlusIcon />
+          Adicionar {buttonTitle.toUpperCase()}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Linha Temporal dos Meses (APENAS TÍTULOS)
+ */
+function MonthsTimeline({ rotatedMonths }) {
+  const monthNames = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"];
+  
+  return (
+    <div className="grid grid-cols-12 gap-1 text-center text-[11px] font-semibold text-gray-400">
+      {rotatedMonths.map(({ monthIndex }) => {
+        return (
+          <div key={monthIndex} className="relative p-1.5 bg-gray-700 rounded-lg h-8 flex flex-col justify-center items-center">
+            {monthNames[monthIndex]}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * NOVO COMPONENTE: Linha Temporal para Descrições de Eventos
+ */
+function EventsDescriptionRow({ rotatedMonths, events = [] }) {
+  
+  return (
+    <div className="grid grid-cols-12 gap-1">
+      {rotatedMonths.map(({ monthIndex, year }) => { 
+        
+        const eventsForThisMonth = events.filter(event => {
+          if (!event.date) return false;
+          const eventDate = new Date(event.date + 'T00:00:00Z');
+          return eventDate.getUTCMonth() === monthIndex && eventDate.getUTCFullYear() === year;
+        });
+        
+        eventsForThisMonth.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        return (
+          <div 
+            key={`${year}-${monthIndex}`} 
+            className="bg-gray-700 rounded-lg min-h-[60px] p-1.5 space-y-0.5 overflow-y-auto"
+          >
+            {eventsForThisMonth.length === 0 && (
+              <span className="text-xs text-gray-500 italic"></span>
+            )}
+            {eventsForThisMonth.map(event => {
+              const day = new Date(event.date + 'T00:00:00Z').getUTCDate();
+              return (
+                <div 
+                  key={event.id}
+                  className={`p-0.5 rounded text-white ${event.color || 'bg-gray-600'} bg-opacity-40 border-l-2 ${event.color ? event.color.replace('bg-', 'border-') : 'border-gray-400'}`}
+                >
+                  <span className={`font-bold text-[11px] ${event.color ? event.color.replace('bg-', 'text-') : 'text-gray-200'}`}>
+                    Dia {day}:
+                  </span>
+                  <p className="text-[11px] text-gray-100 truncate" title={event.desc}>
+                    {event.desc}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+
+/**
+ * ATUALIZADO: Gráfico de Gantt para os Períodos (agora baseado em datas)
+ */
+function PeriodsGanttChart({ periods, rotatedMonths }) {
+  
+  const phaseColors = [
+    'bg-blue-500', 'bg-green-500', 'bg-yellow-500', 
+    'bg-indigo-500', 'bg-pink-500', 'bg-purple-500'
+  ];
+
+  return (
+    <div className="bg-gray-700 p-1.5 rounded-lg">
+      <h4 className="text-xs font-medium text-gray-200 mb-2 px-1.5">
+        Linha Temporal de Períodos
+      </h4>
+      <div className="grid grid-cols-12 gap-1">
+        
+        {rotatedMonths.map(({ monthIndex, year, daysInMonth }, i) => {
+          
+          const monthStart = new Date(Date.UTC(year, monthIndex, 1));
+          const monthEnd = new Date(Date.UTC(year, monthIndex, daysInMonth));
+
+          const activePeriods = periods.filter(period => {
+            if (!period.startDate || !period.endDate) return false;
+            const periodStart = new Date(period.startDate + 'T00:00:00Z');
+            const periodEnd = new Date(period.endDate + 'T00:00:00Z');
+            if (isNaN(periodStart.getTime()) || isNaN(periodEnd.getTime())) return false;
+            return periodStart <= monthEnd && periodEnd >= monthStart;
+          });
+
+          return (
+            <div 
+              key={`${year}-${monthIndex}`} 
+              className="relative w-full h-8 bg-gray-600 rounded overflow-hidden p-0.5 space-y-0.5"
+              title={`Mês: ${monthIndex + 1}/${year}`}
+            >
+              {activePeriods.map((period, idx) => {
+                const periodStart = new Date(period.startDate + 'T00:00:00Z');
+                const periodEnd = new Date(period.endDate + 'T00:00:00Z');
+
+                const startDay = (periodStart < monthStart) ? 1 : periodStart.getUTCDate();
+                const endDay = (periodEnd > monthEnd) ? daysInMonth : periodEnd.getUTCDate();
+                
+                const left = ((startDay - 1) / daysInMonth) * 100;
+                const width = ((endDay - startDay + 1) / daysInMonth) * 100;
+                
+                const color = stringToColor(period.type, phaseColors);
+
+                return (
+                  <div
+                    key={period.id}
+                    style={{ left: `${left}%`, width: `${width}%` }}
+                    className={`absolute h-8 ${color} text-[10px] text-white font-bold flex items-center justify-center overflow-hidden`}
+                    title={`${period.type} (${formatDate(period.startDate)} - ${formatDate(period.endDate)})`}
+                  >
+                    <span className="truncate px-0.5">{period.type}</span>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
+/**
+ * Gráfico de Gantt para os Mesociclos (baseado em 12 caixas)
+ */
+function MesocyclesGanttChart({ mesocycles, rotatedMonths }) {
+  
+  const phaseColors = [
+    'bg-blue-600', 'bg-green-600', 'bg-yellow-600', 
+    'bg-indigo-600', 'bg-pink-600', 'bg-purple-600',
+    'bg-cyan-600', 'bg-lime-600'
+  ];
+
+  return (
+    <div className="bg-gray-700 p-1.5 rounded-lg">
+      <h4 className="text-xs font-medium text-gray-200 mb-2 px-1.5">
+        Linha Temporal de Mesociclos
+      </h4>
+      <div className="grid grid-cols-12 gap-1">
+        
+        {rotatedMonths.map(({ monthIndex, year, daysInMonth }, i) => {
+          
+          const monthStart = new Date(Date.UTC(year, monthIndex, 1));
+          const monthEnd = new Date(Date.UTC(year, monthIndex, daysInMonth));
+
+          const activeMesos = mesocycles.filter(meso => {
+            if (!meso.startDate || !meso.endDate) return false;
+            const mesoStart = new Date(meso.startDate + 'T00:00:00Z');
+            const mesoEnd = new Date(meso.endDate + 'T00:00:00Z');
+            if (isNaN(mesoStart.getTime()) || isNaN(mesoEnd.getTime())) return false;
+            return mesoStart <= monthEnd && mesoEnd >= monthStart;
+          });
+
+          return (
+            <div 
+              key={`${year}-${monthIndex}`} 
+              className="relative w-full h-12 bg-gray-600 rounded overflow-hidden p-0.5 space-y-0.5"
+              title={`Mês: ${monthIndex + 1}/${year}`}
+            >
+              {activeMesos.map((meso, idx) => {
+                const mesoStart = new Date(meso.startDate + 'T00:00:00Z');
+                const mesoEnd = new Date(meso.endDate + 'T00:00:00Z');
+
+                const startDay = (mesoStart < monthStart) ? 1 : mesoStart.getUTCDate();
+                const endDay = (mesoEnd > monthEnd) ? daysInMonth : mesoEnd.getUTCDate();
+                
+                const left = ((startDay - 1) / daysInMonth) * 100;
+                const width = ((endDay - startDay + 1) / daysInMonth) * 100;
+                
+                const color = stringToColor(meso.type, phaseColors);
+
+                return (
+                  <div
+                    key={meso.id}
+                    style={{ left: `${left}%`, width: `${width}%` }}
+                    className={`absolute h-5 ${color} text-xs text-white font-bold flex items-center justify-center overflow-hidden rounded-sm`}
+                    title={`${meso.type} (${formatDate(meso.startDate)} - ${formatDate(meso.endDate)})`}
+                  >
+                    <span className="truncate px-0.5">{meso.type}</span>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * NOVO: Gráfico de Gantt para os Microciclos (baseado em 12 caixas)
+ */
+function MicrocyclesGanttChart({ microcycles, rotatedMonths }) {
+  
+  // Usar cores diferentes para microciclos
+  const phaseColors = [
+    'bg-red-700', 'bg-orange-700', 'bg-amber-700', 
+    'bg-teal-700', 'bg-sky-700', 'bg-fuchsia-700'
+  ];
+
+  return (
+    <div className="bg-gray-700 p-1.5 rounded-lg">
+      <h4 className="text-xs font-medium text-gray-200 mb-2 px-1.5">
+        Linha Temporal de Microciclos
+      </h4>
+      <div className="grid grid-cols-12 gap-1">
+        
+        {rotatedMonths.map(({ monthIndex, year, daysInMonth }, i) => {
+          
+          const monthStart = new Date(Date.UTC(year, monthIndex, 1));
+          const monthEnd = new Date(Date.UTC(year, monthIndex, daysInMonth));
+
+          // Encontrar microciclos que tocam este mês
+          const activeMicros = microcycles.filter(micro => {
+            if (!micro.startDate || !micro.endDate) return false;
+            const microStart = new Date(micro.startDate + 'T00:00:00Z');
+            const microEnd = new Date(micro.endDate + 'T00:00:00Z');
+            if (isNaN(microStart.getTime()) || isNaN(microEnd.getTime())) return false;
+            return microStart <= monthEnd && microEnd >= monthStart;
+          });
+
+          activeMicros.sort((a, b) => a.number - b.number);
+
+          return (
+            <div 
+              key={`${year}-${monthIndex}`} 
+              className="relative w-full min-h-[48px] h-auto bg-gray-600 rounded overflow-hidden p-1 space-y-1"
+              title={`Mês: ${monthIndex + 1}/${year}`}
+            >
+              {activeMicros.map((micro, idx) => {
+                
+                const color = stringToColor(micro.type, phaseColors);
+                const acronym = getAcronym(micro.type);
+
+                return (
+                  <div
+                    key={micro.id}
+                    className={`${color} text-white text-[10px] font-bold flex items-center justify-center rounded-sm py-0.5 px-1`}
+                    title={`Micro ${micro.number}: ${micro.type} (${formatDate(micro.startDate)} - ${formatDate(micro.endDate)})`}
+                  >
+                    <span className="truncate">{`M${micro.number} (${acronym})`}</span>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * NOVO: Linha Temporal de Unidades de Treino (UTs)
+ */
+function UnitsOfTrainingGanttChart({ unitsOfTraining, rotatedMonths }) {
+  
+  return (
+    <div className="bg-gray-700 p-1.5 rounded-lg">
+      <h4 className="text-xs font-medium text-gray-200 mb-2 px-1.5">
+        Linha Temporal de Unidades de Treino (UT)
+      </h4>
+      <div className="grid grid-cols-12 gap-1">
+        
+        {rotatedMonths.map(({ monthIndex, year, daysInMonth }, i) => {
+          
+          const monthStart = new Date(Date.UTC(year, monthIndex, 1));
+          const monthEnd = new Date(Date.UTC(year, monthIndex, daysInMonth));
+
+          // Encontrar UTs que tocam este mês
+          const activeUts = unitsOfTraining.filter(ut => {
+            if (!ut.date) return false;
+            const utDate = new Date(ut.date + 'T00:00:00Z');
+            if (isNaN(utDate.getTime())) return false;
+            return utDate.getUTCMonth() === monthIndex && utDate.getUTCFullYear() === year;
+          });
+          
+          activeUts.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+          return (
+            <div 
+              key={`${year}-${monthIndex}`} 
+              className="relative w-full min-h-[48px] h-auto bg-gray-600 rounded overflow-hidden p-1 space-y-1"
+              title={`Mês: ${monthIndex + 1}/${year}`}
+            >
+              {activeUts.map((ut, idx) => {
+                const day = new Date(ut.date + 'T00:00:00Z').getUTCDate();
+                return (
+                  <div
+                    key={ut.id}
+                    className="bg-gray-400 text-gray-900 text-[9px] font-bold rounded-sm px-1 py-0.5"
+                    title={`UT: ${ut.name} (Dia ${day})`}
+                  >
+                    {ut.name} (D{day})
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * NOVO: Linha Temporal de Carga Física (Gráfico de Barras)
+ */
+function TrainingLoadGanttChart({ dailyLoads, rotatedMonths }) {
+  
+  let dayOffset = 0;
+
+  return (
+    <div className="bg-gray-700 p-1.5 rounded-lg">
+      <h4 className="text-xs font-medium text-gray-200 mb-2 px-1.5">
+        Linha Temporal de Carga Física (Intensidade x Duração)
+      </h4>
+      <div className="grid grid-cols-12 gap-1">
+        
+        {rotatedMonths.map(({ monthIndex, year, daysInMonth }, i) => {
+          
+          // Pegar a fatia correta de 'dailyLoads'
+          const monthLoads = dailyLoads.slice(dayOffset, dayOffset + daysInMonth);
+          dayOffset += daysInMonth;
+
+          const maxLoadInMonth = Math.max(...monthLoads, 0);
+
+          return (
+            <div 
+              key={`${year}-${monthIndex}`} 
+              className="relative w-full min-h-[60px] h-auto bg-gray-600 rounded overflow-hidden p-0.5 flex items-end justify-around gap-px"
+              title={`Carga - Mês: ${monthIndex + 1}/${year}`}
+            >
+              {monthLoads.map((load, dayIdx) => {
+                const height = maxLoadInMonth === 0 ? 0 : (load / maxLoadInMonth) * 100;
+                
+                return (
+                  <div
+                    key={dayIdx}
+                    className="flex-1 bg-blue-400 rounded-t-[1px]"
+                    style={{ height: `${height}%`, minHeight: load > 0 ? '1px' : '0px' }}
+                    title={`Dia ${dayIdx + 1}: Carga = ${load}`}
+                  >
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * NOVO: Gráfico de Modelo de Performance (Fitness/Fadiga)
+ */
+function PerformanceModelChart({ performanceData, rotatedMonths }) {
+  
+  let dayOffset = 0;
+  
+  const { minPerf, maxPerf } = useMemo(() => {
+    if (!performanceData || performanceData.length === 0) {
+       return { minPerf: 0, maxPerf: 0 };
+    }
+    const min = Math.min(...performanceData);
+    const max = Math.max(...performanceData, 0); 
+    return { minPerf: min, maxPerf: max };
+  }, [performanceData]);
+
+  const range = maxPerf - minPerf;
+  const zeroLinePercent = (range === 0) ? 50 : (maxPerf / range) * 100;
+  
+  const zeroPointY = 100 - zeroLinePercent;
+
+  return (
+    <div className="bg-gray-700 p-1.5 rounded-lg">
+      <h4 className="text-xs font-medium text-gray-200 mb-2 px-1.5">
+        Linha Temporal de Performance (Pico de Forma)
+      </h4>
+      <div className="flex items-center text-[10px] text-gray-300 mb-1 ml-1 space-x-3">
+         <span>Legenda:</span>
+         <span className="flex items-center gap-1"><div className="w-3 h-3 bg-yellow-400 rounded-sm"></div> Performance (Pico)</span>
+         <span className="flex items-center gap-1"><div className="w-3 h-3 bg-red-600 rounded-sm"></div> Fadiga (Negativo)</span>
+      </div>
+      
+      <div className="grid grid-cols-12 gap-1">
+        
+        {rotatedMonths.map(({ monthIndex, year, daysInMonth }, i) => {
+          
+          const monthPerf = performanceData.slice(dayOffset, dayOffset + daysInMonth);
+          dayOffset += daysInMonth;
+
+          return (
+            <div 
+              key={`${year}-${monthIndex}`} 
+              className="relative w-full min-h-[80px] h-auto bg-gray-600 rounded overflow-hidden flex justify-around gap-px"
+              title={`Performance - Mês: ${monthIndex + 1}/${year}`}
+            >
+              <div 
+                 className="absolute w-full bg-gray-400 opacity-30"
+                 style={{ top: `${zeroPointY}%`, height: '1px' }}
+              ></div>
+              
+              {monthPerf.map((perf, dayIdx) => {
+                
+                let barHeight, barTop, barColor;
+                
+                if (perf >= 0) {
+                  barHeight = (range === 0) ? 0 : (perf / range) * 100;
+                  barTop = zeroPointY - barHeight;
+                  barColor = 'bg-yellow-400';
+                } else {
+                  barHeight = (range === 0) ? 0 : (Math.abs(perf) / range) * 100;
+                  barTop = zeroPointY;
+                  barColor = 'bg-red-600';
+                }
+
+                return (
+                  <div
+                    key={dayIdx}
+                    className={`absolute ${barColor} rounded-b-[1px]`}
+                    style={{ 
+                       height: `${barHeight}%`, 
+                       top: `${barTop}%`,
+                       left: `${(dayIdx / daysInMonth) * 100}%`,
+                       width: `${(1 / daysInMonth) * 100}%`,
+                       minHeight: '1px'
+                    }}
+                    title={`Dia ${dayIdx + 1}: Performance = ${perf.toFixed(0)}`}
+                  >
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
+/**
+ * NOVO: Planeador de Períodos
+ */
+function PeriodPlanner({ periodDefinitions, periods, onPeriodsChange }) {
+  const [newPeriodType, setNewPeriodType] = useState('');
+  const [newPeriodStart, setNewPeriodStart] = useState('');
+  const [newPeriodEnd, setNewPeriodEnd] = useState('');
+
+  const handleAddPeriod = () => {
+    if (!newPeriodType || !newPeriodStart || !newPeriodEnd) {
+      return;
+    }
+
+    const newPeriod = {
+      id: Date.now(),
+      type: newPeriodType,
+      startDate: newPeriodStart,
+      endDate: newPeriodEnd,
+    };
+
+    onPeriodsChange([...periods, newPeriod].sort((a, b) => new Date(a.startDate) - new Date(b.startDate)));
+    
+    setNewPeriodType('');
+    setNewPeriodStart('');
+    setNewPeriodEnd('');
+  };
+
+  const handleRemovePeriod = (id) => {
+    onPeriodsChange(periods.filter(period => period.id !== id));
+  };
+
+  return (
+    <div className="bg-gray-800 p-3 rounded-lg shadow-md">
+      <h3 className="text-base font-semibold text-white mb-3">Período</h3>
+      
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end mb-3 p-3 bg-gray-900 rounded-lg">
+        <div>
+          <label className="text-[11px] font-medium text-gray-400">Tipo de Período</label>
+          <select
+            value={newPeriodType}
+            onChange={(e) => setNewPeriodType(e.target.value)}
+            className="input-base text-xs"
+          >
+            <option value="">- Selecionar -</option>
+            {periodDefinitions.map(period => (
+              <option key={period} value={period}>{period}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-[11px] font-medium text-gray-400">Data de Início</label>
+          <input
+            type="date"
+            value={newPeriodStart}
+            onChange={(e) => setNewPeriodStart(e.target.value)}
+            className="input-base"
+          />
+        </div>
+        <div>
+          <label className="text-[11px] font-medium text-gray-400">Data de Fim</label>
+          <input
+            type="date"
+            value={newPeriodEnd}
+            onChange={(e) => setNewPeriodEnd(e.target.value)}
+            className="input-base"
+          />
+        </div>
+        <button
+          onClick={handleAddPeriod}
+          className="button-base-blue text-xs h-[31px] flex items-center justify-center gap-1"
+        >
+          <PlusIcon />
+          Adicionar Período
+        </button>
+      </div>
+
+      <div className="space-y-2 max-h-96 overflow-y-auto">
+        <div className="grid grid-cols-4 gap-2 px-2 py-1 border-b border-gray-700">
+          <span className="text-xs font-semibold text-gray-400">Tipo</span>
+          <span className="text-xs font-semibold text-gray-400">Início</span>
+          <span className="text-xs font-semibold text-gray-400">Fim</span>
+          <span className="text-xs font-semibold text-gray-400">Ações</span>
+        </div>
+        
+        {periods.length === 0 && (
+           <p className="text-xs text-gray-400 text-center py-4 col-span-4">Nenhum período planeado.</p>
+        )}
+
+        {periods.map(period => (
+          <div key={period.id} className="grid grid-cols-4 gap-2 items-center px-2 py-1 rounded hover:bg-gray-700">
+            <span className="text-xs text-gray-200 font-medium">{period.type}</span>
+            <span className="text-xs text-gray-200">{formatDate(period.startDate)}</span>
+            <span className="text-xs text-gray-200">{formatDate(period.endDate)}</span>
+            <button onClick={() => handleRemovePeriod(period.id)} className="group text-left">
+              <TrashIcon />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Planeador de Mesociclos
+ */
+function MesocyclePlanner({ mesoDefinitions, mesocycles, onMesocyclesChange }) {
+  const [newMesoType, setNewMesoType] = useState('');
+  const [newMesoStart, setNewMesoStart] = useState('');
+  const [newMesoEnd, setNewMesoEnd] = useState('');
+
+  const handleAddMeso = () => {
+    if (!newMesoType || !newMesoStart || !newMesoEnd) {
+      return;
+    }
+
+    const newMeso = {
+      id: Date.now(),
+      type: newMesoType,
+      startDate: newMesoStart,
+      endDate: newMesoEnd,
+    };
+
+    onMesocyclesChange([...mesocycles, newMeso].sort((a, b) => new Date(a.startDate) - new Date(b.startDate)));
+    
+    setNewMesoType('');
+    setNewMesoStart('');
+    setNewMesoEnd('');
+  };
+
+  const handleRemoveMeso = (id) => {
+    onMesocyclesChange(mesocycles.filter(meso => meso.id !== id));
+  };
+
+  return (
+    <div className="bg-gray-800 p-3 rounded-lg shadow-md">
+      <h3 className="text-base font-semibold text-white mb-3">Mesociclo</h3>
+      
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end mb-3 p-3 bg-gray-900 rounded-lg">
+        <div>
+          <label className="text-[11px] font-medium text-gray-400">Tipo de Mesociclo</label>
+          <select
+            value={newMesoType}
+            onChange={(e) => setNewMesoType(e.target.value)}
+            className="input-base text-xs"
+          >
+            <option value="">- Selecionar -</option>
+            {mesoDefinitions.map(meso => (
+              <option key={meso} value={meso}>{meso}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-[11px] font-medium text-gray-400">Data de Início</label>
+          <input
+            type="date"
+            value={newMesoStart}
+            onChange={(e) => setNewMesoStart(e.target.value)}
+            className="input-base"
+          />
+        </div>
+        <div>
+          <label className="text-[11px] font-medium text-gray-400">Data de Fim</label>
+          <input
+            type="date"
+            value={newMesoEnd}
+            onChange={(e) => setNewMesoEnd(e.target.value)}
+            className="input-base"
+          />
+        </div>
+        <button
+          onClick={handleAddMeso}
+          className="button-base-blue text-xs h-[31px] flex items-center justify-center gap-1"
+        >
+          <PlusIcon />
+          Adicionar Mesociclo
+        </button>
+      </div>
+
+      <div className="space-y-2 max-h-96 overflow-y-auto">
+        <div className="grid grid-cols-4 gap-2 px-2 py-1 border-b border-gray-700">
+          <span className="text-xs font-semibold text-gray-400">Tipo</span>
+          <span className="text-xs font-semibold text-gray-400">Início</span>
+          <span className="text-xs font-semibold text-gray-400">Fim</span>
+          <span className="text-xs font-semibold text-gray-400">Ações</span>
+        </div>
+        
+        {mesocycles.length === 0 && (
+           <p className="text-xs text-gray-400 text-center py-4 col-span-4">Nenhum mesociclo planeado.</p>
+        )}
+
+        {mesocycles.map(meso => (
+          <div key={meso.id} className="grid grid-cols-4 gap-2 items-center px-2 py-1 rounded hover:bg-gray-700">
+            <span className="text-xs text-gray-200 font-medium">{meso.type}</span>
+            <span className="text-xs text-gray-200">{formatDate(meso.startDate)}</span>
+            <span className="text-xs text-gray-200">{formatDate(meso.endDate)}</span>
+            <button onClick={() => handleRemoveMeso(meso.id)} className="group text-left">
+              <TrashIcon />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * NOVO: Planeador de Microciclos
+ */
+function MicrocyclePlanner({ microDefinitions, microcycles, onMicrocyclesChange }) {
+  const [newMicroType, setNewMicroType] = useState('');
+  const [newMicroNumber, setNewMicroNumber] = useState('');
+  const [newMicroStart, setNewMicroStart] = useState('');
+  const [newMicroEnd, setNewMicroEnd] = useState('');
+
+  const handleAddMicro = () => {
+    if (!newMicroType || !newMicroNumber || !newMicroStart || !newMicroEnd) {
+      return;
+    }
+
+    const newMicro = {
+      id: Date.now(),
+      type: newMicroType,
+      number: parseInt(newMicroNumber, 10), 
+      startDate: newMicroStart,
+      endDate: newMicroEnd,
+    };
+
+    onMicrocyclesChange([...microcycles, newMicro].sort((a, b) => a.number - b.number));
+    
+    setNewMicroType('');
+    setNewMicroNumber(''); 
+    setNewMicroStart('');
+    setNewMicroEnd('');
+  };
+
+  const handleRemoveMicro = (id) => {
+    onMicrocyclesChange(microcycles.filter(micro => micro.id !== id));
+  };
+  
+  return (
+    <div className="bg-gray-800 p-3 rounded-lg shadow-md">
+      <h3 className="text-base font-semibold text-white mb-3">Microciclo</h3>
+      
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end mb-3 p-3 bg-gray-900 rounded-lg">
+        <div>
+          <label className="text-[11px] font-medium text-gray-400">Número</label>
+          <input
+            type="number"
+            value={newMicroNumber}
+            onChange={(e) => setNewMicroNumber(e.target.value)}
+            className="input-base"
+            min="1"
+          />
+        </div>
+        <div>
+          <label className="text-[11px] font-medium text-gray-400">Tipo de Microciclo</label>
+          <select
+            value={newMicroType}
+            onChange={(e) => setNewMicroType(e.target.value)}
+            className="input-base text-xs"
+          >
+            <option value="">- Selecionar -</option>
+            {microDefinitions.map(micro => (
+              <option key={micro} value={micro}>{micro}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-[11px] font-medium text-gray-400">Data de Início</label>
+          <input
+            type="date"
+            value={newMicroStart}
+            onChange={(e) => setNewMicroStart(e.target.value)}
+            className="input-base"
+          />
+        </div>
+        <div>
+          <label className="text-[11px] font-medium text-gray-400">Data de Fim</label>
+          <input
+            type="date"
+            value={newMicroEnd}
+            onChange={(e) => setNewMicroEnd(e.target.value)}
+            className="input-base"
+          />
+        </div>
+        <button
+          onClick={handleAddMicro}
+          className="button-base-blue text-xs h-[31px] flex items-center justify-center gap-1"
+        >
+          <PlusIcon />
+          Adicionar Microciclo
+        </button>
+      </div>
+
+      <div className="space-y-2 max-h-96 overflow-y-auto">
+        <div className="grid grid-cols-5 gap-2 px-2 py-1 border-b border-gray-700">
+          <span className="text-xs font-semibold text-gray-400">Nº</span>
+          <span className="text-xs font-semibold text-gray-400">Tipo</span>
+          <span className="text-xs font-semibold text-gray-400">Início</span>
+          <span className="text-xs font-semibold text-gray-400">Fim</span>
+          <span className="text-xs font-semibold text-gray-400">Ações</span>
+        </div>
+        
+        {microcycles.length === 0 && (
+           <p className="text-xs text-gray-400 text-center py-4 col-span-5">Nenhum microciclo planeado.</p>
+        )}
+
+        {microcycles.map(micro => (
+          <div key={micro.id} className="grid grid-cols-5 gap-2 items-center px-2 py-1 rounded hover:bg-gray-700">
+            <span className="text-xs text-gray-200 font-medium">{micro.number}</span>
+            <span className="text-xs text-gray-200 font-medium">{micro.type}</span>
+            <span className="text-xs text-gray-200">{formatDate(micro.startDate)}</span>
+            <span className="text-xs text-gray-200">{formatDate(micro.endDate)}</span>
+            <button onClick={() => handleRemoveMicro(micro.id)} className="group text-left">
+              <TrashIcon />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * ATUALIZADO: Planeador de Unidades de Treino (UT)
+ */
+function UnitOfTrainingPlanner({ microcycles, unitsOfTraining, onUnitsOfTrainingChange }) {
+  const [newUtMicroId, setNewUtMicroId] = useState('');
+  const [newUtName, setNewUtName] = useState('');
+  const [newUtDate, setNewUtDate] = useState('');
+  const [newUtIntensity, setNewUtIntensity] = useState('3'); 
+  const [newUtDuration, setNewUtDuration] = useState(''); 
+
+  const handleAddUt = () => {
+    if (!newUtMicroId || !newUtName || !newUtDate || !newUtIntensity || !newUtDuration) {
+      return;
+    }
+
+    const newUt = {
+      id: Date.now(),
+      microcycleId: parseInt(newUtMicroId, 10),
+      name: newUtName,
+      date: newUtDate,
+      intensity: parseInt(newUtIntensity, 10),
+      duration: parseInt(newUtDuration, 10),
+    };
+
+    onUnitsOfTrainingChange([...unitsOfTraining, newUt].sort((a, b) => new Date(a.date) - new Date(b.date)));
+    
+    setNewUtMicroId('');
+    setNewUtName('');
+    setNewUtDate('');
+    setNewUtIntensity('3');
+    setNewUtDuration('');
+  };
+
+  const handleRemoveUt = (id) => {
+    onUnitsOfTrainingChange(unitsOfTraining.filter(ut => ut.id !== id));
+  };
+  
+  return (
+    <div className="bg-gray-800 p-3 rounded-lg shadow-md">
+      <h3 className="text-base font-semibold text-white mb-3">Unidade de Treino (UT)</h3>
+      
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end mb-3 p-3 bg-gray-900 rounded-lg">
+        <div>
+          <label className="text-[11px] font-medium text-gray-400">Microciclo (Pai)</label>
+          <select
+            value={newUtMicroId}
+            onChange={(e) => setNewUtMicroId(e.target.value)}
+            className="input-base text-xs"
+          >
+            <option value="">- Selecionar Microciclo -</option>
+            {microcycles.map(micro => (
+              <option key={micro.id} value={micro.id}>
+                Micro {micro.number} ({micro.type})
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-[11px] font-medium text-gray-400">Nome da UT (ex: UT1)</label>
+          <input
+            type="text"
+            value={newUtName}
+            onChange={(e) => setNewUtName(e.target.value)}
+            className="input-base"
+            placeholder="UT1"
+          />
+        </div>
+        <div>
+          <label className="text-[11px] font-medium text-gray-400">Data da UT</label>
+          <input
+            type="date"
+            value={newUtDate}
+            onChange={(e) => setNewUtDate(e.target.value)}
+            className="input-base"
+          />
+        </div>
+        
+        <div>
+          <label className="text-[11px] font-medium text-gray-400">Intensidade (1-5)</label>
+          <select
+            value={newUtIntensity}
+            onChange={(e) => setNewUtIntensity(e.target.value)}
+            className="input-base text-xs"
+          >
+            <option value="1">1 (Muito Leve)</option>
+            <option value="2">2 (Leve)</option>
+            <option value="3">3 (Moderado)</option>
+            <option value="4">4 (Difícil)</option>
+            <option value="5">5 (Muito Difícil)</option>
+          </select>
+        </div>
+        
+        <div>
+          <label className="text-[11px] font-medium text-gray-400">Duração (min)</label>
+          <input
+            type="number"
+            value={newUtDuration}
+            onChange={(e) => setNewUtDuration(e.target.value)}
+            className="input-base"
+            placeholder="ex: 90"
+            min="0"
+          />
+        </div>
+
+        <button
+          onClick={handleAddUt}
+          className="button-base-blue text-xs h-[31px] flex items-center justify-center gap-1"
+        >
+          <PlusIcon />
+          Adicionar UT
+        </button>
+      </div>
+
+      <div className="space-y-2 max-h-96 overflow-y-auto">
+        <div className="grid grid-cols-6 gap-2 px-2 py-1 border-b border-gray-700">
+          <span className="text-xs font-semibold text-gray-400">Nome</span>
+          <span className="text-xs font-semibold text-gray-400">Data</span>
+          <span className="text-xs font-semibold text-gray-400">Micro (Pai)</span>
+          <span className="text-xs font-semibold text-gray-400">Int.</span>
+          <span className="text-xs font-semibold text-gray-400">Dur.</span>
+          <span className="text-xs font-semibold text-gray-400">Ações</span>
+        </div>
+        
+        {unitsOfTraining.length === 0 && (
+           <p className="text-xs text-gray-400 text-center py-4 col-span-6">Nenhuma UT planeada.</p>
+        )}
+
+        {unitsOfTraining.map(ut => {
+          const parentMicro = microcycles.find(m => m.id === ut.microcycleId);
+          return (
+            <div key={ut.id} className="grid grid-cols-6 gap-2 items-center px-2 py-1 rounded hover:bg-gray-700">
+              <span className="text-xs text-gray-200 font-medium">{ut.name}</span>
+              <span className="text-xs text-gray-200">{formatDate(ut.date)}</span>
+              <span className="text-xs text-gray-200" title={parentMicro ? parentMicro.type : ''}>
+                {parentMicro ? `M${parentMicro.number} (${getAcronym(parentMicro.type)})` : 'N/A'}
+              </span>
+              <span className="text-xs text-gray-200">{ut.intensity}</span>
+              <span className="text-xs text-gray-200">{ut.duration} min</span>
+              <button onClick={() => handleRemoveUt(ut.id)} className="group text-left">
+                <TrashIcon />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
+// --- Definições Iniciais (Estado Padrão) ---
+const DEFAULT_STATE = {
+  titles: {
+    col1: "OBJETIVOS",
+    col2: "COMPETIÇÕES",
+    col3: "EXAMES DE GRADUAÇÃO",
+    col4: "EVENTOS",
+  },
+  objectives: [],
+  competitions: [],
+  exams: [],
+  events: [],
+  seasonYear: new Date().getFullYear(),
+  startMonth: 0,
+  periodDefinitions: ['Preparatório', 'Competitivo', 'Transição'],
+  periods: [],
+  mesoDefinitions: ['Base', 'Desenvolvimento', 'Controlo', 'Competição', 'Manutenção'],
+  microDefinitions: ['Ajuste (AJ)', 'Carga (CA)', 'Impacto (IM)', 'Recuperação (RE)'],
+  mesocycles: [],
+  microcycles: [],
+  unitsOfTraining: [],
+};
+
+
+/**
+ * Componente Principal da Aplicação
+ */
+export default function App() {
+  const monthNames = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"];
+  
+  // --- NOVO: Gestão de Estado (Tudo num só objeto) ---
+  const [plan, setPlan] = useState(DEFAULT_STATE);
+  
+  // NOVO: Estados de UI (Carregamento e ID do Utilizador)
+  const [userId, setUserId] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // NOVO: Referência para a base de dados (Firestore doc)
+  const docRef = useMemo(() => {
+    if (!userId || !db) return null;
+    // Caminho privado para o plano deste utilizador
+    return doc(db, 'artifacts', appId, 'users', userId, 'planerTkd');
+  }, [userId]);
+
+
+  // --- Efeitos do Firebase ---
+
+  // Passo 1: Autenticação
+  useEffect(() => {
+    if (!auth) {
+      console.log("Firebase Auth não está pronto.");
+      return;
+    }
+    
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        console.log("Utilizador autenticado:", user.uid);
+        setUserId(user.uid);
+      } else {
+        console.log("Nenhum utilizador, a tentar autenticar...");
+        try {
+          const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+          if (token) {
+            await signInWithCustomToken(auth, token);
+          } else {
+            await signInAnonymously(auth);
+          }
+        } catch (error) {
+          console.error("Erro na autenticação:", error);
+          setIsLoading(false); // Parar o loading mesmo se falhar
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Passo 2: Carregar Dados (Ler da Nuvem)
+  useEffect(() => {
+    if (!docRef) {
+      // Se o userId ainda não chegou, não fazer nada
+      return;
+    }
+    
+    console.log("A tentar carregar dados do Firestore...");
+    setIsLoading(true);
+    
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        console.log("Dados encontrados, a carregar plano...");
+        const data = docSnap.data();
+        // Fundir dados da DB com o default, para o caso de haver novas chaves
+        setPlan(prevPlan => ({ ...prevPlan, ...data }));
+      } else {
+        console.log("Nenhum documento encontrado, a usar estado padrão.");
+        // Usar o estado padrão (não é preciso fazer setPlan)
+      }
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Erro ao carregar dados (onSnapshot):", error);
+      setIsLoading(false);
+    });
+    
+    return () => unsubscribe();
+  }, [docRef]);
+
+  // Passo 3: Guardar Dados (Escrever na Nuvem)
+  useEffect(() => {
+    // Não guardar se estivermos a carregar ou se o docRef não estiver pronto
+    if (isLoading || !docRef) {
+      return;
+    }
+
+    console.log("Mudança detetada, a guardar na base de dados...");
+    
+    // Usamos um 'timeout' (debounce) para não guardar a cada tecla premida
+    const handler = setTimeout(() => {
+      setDoc(docRef, plan)
+        .then(() => {
+          console.log("Plano guardado com sucesso!");
+        })
+        .catch((error) => {
+          console.error("Erro ao guardar o plano:", error);
+        });
+    }, 1500); // Guardar 1.5s depois da última alteração
+
+    return () => {
+      clearTimeout(handler); // Cancelar o timeout se houver nova alteração
+    };
+  }, [plan, docRef, isLoading]);
+
+
+  // --- Funções de "Set" para o estado (passadas aos componentes) ---
+  // Estas funções atualizam o objeto de estado principal 'plan'
+  
+  const handlePlanChange = (key, value) => {
+    setPlan(prevPlan => ({ ...prevPlan, [key]: value }));
+  };
+  
+  const handleTitleChange = (colKey, newTitle) => {
+    setPlan(prevPlan => ({
+      ...prevPlan,
+      titles: { ...prevPlan.titles, [colKey]: newTitle }
+    }));
+  };
+
+  // --- Memos de Cálculo (Performance, etc.) ---
+  
+  const seasonData = useMemo(() => {
+    const rotatedMonths = [];
+    const seasonStartDate = new Date(Date.UTC(plan.seasonYear, plan.startMonth, 1));
+    let totalDays = 0;
+    
+    for (let i = 0; i < 12; i++) {
+      const date = new Date(Date.UTC(plan.seasonYear, plan.startMonth + i, 1));
+      const year = date.getUTCFullYear();
+      const monthIndex = date.getUTCMonth();
+      const daysInMonth = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+      
+      rotatedMonths.push({ monthIndex, year, daysInMonth });
+      totalDays += daysInMonth;
+    }
+    
+    // 1. Calcular Carga Diária
+    const dailyLoads = Array(totalDays).fill(0);
+    plan.unitsOfTraining.forEach(ut => {
+      if (!ut.date) return;
+      const utDate = new Date(ut.date + 'T00:00:00Z');
+      const dayIndex = daysBetween(seasonStartDate, utDate);
+      
+      if (dayIndex >= 0 && dayIndex < totalDays) {
+        const load = (ut.intensity || 0) * (ut.duration || 0);
+        dailyLoads[dayIndex] += load;
+      }
+    });
+
+    // 2. Calcular Modelo de Performance (Fitness-Fadiga)
+    const FITNESS_DECAY = Math.exp(-1 / 42); 
+    const FATIGUE_DECAY = Math.exp(-1 / 7);  
+
+    const fitnessData = Array(totalDays).fill(0);
+    const fatigueData = Array(totalDays).fill(0);
+    const performanceData = Array(totalDays).fill(0);
+
+    let fitness = 0;
+    let fatigue = 0;
+
+    for (let i = 0; i < totalDays; i++) {
+      const loadToday = dailyLoads[i];
+      
+      fitness = (fitness * FITNESS_DECAY) + loadToday;
+      fatigue = (fatigue * FATIGUE_DECAY) + loadToday;
+      
+      fitnessData[i] = fitness;
+      fatigueData[i] = fatigue;
+      performanceData[i] = fitness - fatigue;
+    }
+    
+    return {
+      rotatedMonths,
+      totalDays,
+      dailyLoads,
+      fitnessData,
+      fatigueData,
+      performanceData
+    };
+    
+  }, [plan.unitsOfTraining, plan.seasonYear, plan.startMonth]);
+
+  const allEvents = useMemo(() => {
+    return [
+      ...plan.objectives.map(e => ({ ...e, color: 'bg-blue-400' })),
+      ...plan.competitions.map(e => ({ ...e, color: 'bg-red-400' })),
+      ...plan.exams.map(e => ({ ...e, color: 'bg-yellow-400' })),
+      ...plan.events.map(e => ({ ...e, color: 'bg-green-400' })),
+    ];
+  }, [plan.objectives, plan.competitions, plan.exams, plan.events]);
+  
+
+  // Ecrã de Carregamento
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen bg-gray-900 text-gray-400">
+        A carregar o seu plano...
+      </div>
+    );
+  }
+  
+  // Renderização Principal
+  return (
+    <div className="bg-gray-900 min-h-screen p-3 md:p-6 text-gray-200 font-sans">
+      <style>{`
+        /* Estilos Globais Customizados */
+        body { background-color: #111827; }
+        .input-base {
+          background-color: #374151; /* gray-700 */
+          border: 1px solid #4B5563; /* gray-600 */
+          color: #F3F4F6; /* gray-100 */
+          border-radius: 0.375rem; /* rounded-md */
+          padding: 0.375rem 0.625rem;
+          width: 100%;
+          font-size: 0.75rem; 
+        }
+        .input-base:focus {
+          outline: none;
+          border-color: #3B82F6; /* blue-500 */
+          box-shadow: 0 0 0 2px #1e40af; /* focus:ring-blue-600 */
+        }
+        
+        input[type="date"]::-webkit-calendar-picker-indicator {
+          opacity: 1;
+          background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%239CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2" /><line x1="16" x2="16" y1="2" y2="6" /><line x1="8" x2="8" y1="2" y2="6" /><line x1="3" x2="21" y1="10" y2="10" /></svg>') no-repeat;
+          cursor: pointer;
+          filter: invert(0.1); 
+        }
+
+        .button-base-blue {
+          background-color: #2563EB; /* blue-600 */
+          color: white;
+          padding: 0.375rem 0.625rem;
+          border-radius: 0.375rem;
+          font-weight: 500;
+        }
+        .button-base-blue:hover {
+          background-color: #1D4ED8; /* blue-700 */
+        }
+        
+        /* Estilos para as cores dos eventos */
+        .border-blue-400 { border-color: #60A5FA; }
+        .text-blue-400 { color: #60A5FA; }
+        .border-red-400 { border-color: #F87171; }
+        .text-red-400 { color: #F87171; }
+        .border-yellow-400 { border-color: #FACC15; }
+        .text-yellow-400 { color: #FACC15; }
+        .border-green-400 { border-color: #4ADE80; }
+        .text-green-400 { color: #4ADE80; }
+      `}</style>
+      
+      <div className="max-w-7xl mx-auto space-y-3">
+        <AppHeader userId={userId} />
+
+        {/* Secção 1: Temporada (Eventos) */}
+        <section className="bg-gray-800 p-3 rounded-lg shadow-md">
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="text-lg font-semibold text-white">Temporada</h2>
+            <div className="flex gap-4">
+              <div>
+                <label htmlFor="season-year" className="text-xs text-gray-400 mr-2">Ano:</label>
+                <input
+                  id="season-year"
+                  type="number"
+                  value={plan.seasonYear}
+                  onChange={(e) => handlePlanChange('seasonYear', parseInt(e.target.value, 10) || new Date().getFullYear())}
+                  className="input-base w-20"
+                />
+              </div>
+              <div>
+                <label htmlFor="start-month" className="text-xs text-gray-400 mr-2">Mês de Início:</label>
+                <select
+                  id="start-month"
+                  value={plan.startMonth}
+                  onChange={(e) => handlePlanChange('startMonth', parseInt(e.target.value, 10))}
+                  className="input-base w-auto"
+                >
+                  {monthNames.map((name, index) => (
+                    <option key={name} value={index}>{name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-4 gap-3">
+            <EventColumn
+              title={plan.titles.col1}
+              items={plan.objectives}
+              onTitleChange={(newTitle) => handleTitleChange('col1', newTitle)}
+              onItemsChange={(newItems) => handlePlanChange('objectives', newItems)}
+            />
+            <EventColumn
+              title={plan.titles.col2}
+              items={plan.competitions}
+              onTitleChange={(newTitle) => handleTitleChange('col2', newTitle)}
+              onItemsChange={(newItems) => handlePlanChange('competitions', newItems)}
+            />
+            <EventColumn
+              title={plan.titles.col3}
+              items={plan.exams}
+              onTitleChange={(newTitle) => handleTitleChange('col3', newTitle)}
+              onItemsChange={(newItems) => handlePlanChange('exams', newItems)}
+            />
+            <EventColumn
+              title={plan.titles.col4}
+              items={plan.events}
+              onTitleChange={(newTitle) => handleTitleChange('col4', newTitle)}
+              onItemsChange={(newItems) => handlePlanChange('events', newItems)}
+            />
+          </div>
+        </section>
+
+        {/* Secção 2: Linha Temporal (Meses e Períodos) */}
+        <section className="space-y-3">
+          <MonthsTimeline rotatedMonths={seasonData.rotatedMonths} />
+          <EventsDescriptionRow rotatedMonths={seasonData.rotatedMonths} events={allEvents} />
+          <PeriodsGanttChart 
+            periods={plan.periods}
+            rotatedMonths={seasonData.rotatedMonths}
+          />
+          <MesocyclesGanttChart 
+            mesocycles={plan.mesocycles}
+            rotatedMonths={seasonData.rotatedMonths}
+          />
+          <MicrocyclesGanttChart
+            microcycles={plan.microcycles}
+            rotatedMonths={seasonData.rotatedMonths}
+          />
+          <UnitsOfTrainingGanttChart
+            unitsOfTraining={plan.unitsOfTraining}
+            rotatedMonths={seasonData.rotatedMonths}
+          />
+          <TrainingLoadGanttChart
+            dailyLoads={seasonData.dailyLoads}
+            rotatedMonths={seasonData.rotatedMonths}
+          />
+          <PerformanceModelChart
+            performanceData={seasonData.performanceData}
+            rotatedMonths={seasonData.rotatedMonths}
+          />
+        </section>
+        
+        {/* NOVO: Secção 3: Planeador de Períodos */}
+        <section>
+          <PeriodPlanner
+            periodDefinitions={plan.periodDefinitions}
+            periods={plan.periods}
+            onPeriodsChange={(newItems) => handlePlanChange('periods', newItems)}
+          />
+        </section>
+        
+        {/* Secção 4: Planeador de Mesociclos */}
+        <section>
+          <MesocyclePlanner
+            mesoDefinitions={plan.mesoDefinitions}
+            mesocycles={plan.mesocycles}
+            onMesocyclesChange={(newItems) => handlePlanChange('mesocycles', newItems)}
+          />
+        </section>
+        
+        {/* Secção 5: Planeador de Microciclos */}
+        <section>
+          <MicrocyclePlanner
+            microDefinitions={plan.microDefinitions}
+            microcycles={plan.microcycles}
+            onMicrocyclesChange={(newItems) => handlePlanChange('microcycles', newItems)}
+          />
+        </section>
+        
+        {/* NOVO: Secção 6: Planeador de Unidades de Treino */}
+        <section>
+          <UnitOfTrainingPlanner
+            microcycles={plan.microcycles} 
+            unitsOfTraining={plan.unitsOfTraining}
+            onUnitsOfTrainingChange={(newItems) => handlePlanChange('unitsOfTraining', newItems)}
+          />
+        </section>
+
+      </div>
+    </div>
+  );
+}
