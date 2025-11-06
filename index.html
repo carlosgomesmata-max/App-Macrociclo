@@ -16,17 +16,13 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   
   <!-- 4. Carregar Firebase (SDKs individuais) -->
-  <!-- ATUALIZADO: Agora inclui 'database' -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    // MUDANÇA: de getFirestore para getDatabase
     import { getDatabase } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
     
-    // Tornar as funções do Firebase acessíveis globalmente para o script Babel
     window.FirebaseApp = { initializeApp };
     window.FirebaseAuth = { getAuth };
-    // MUDANÇA: de FirebaseFirestore para FirebaseDatabase
     window.FirebaseDatabase = { getDatabase };
   </script>
 
@@ -91,7 +87,6 @@
     // Funções do Firebase (agora lidas da window)
     const { initializeApp } = window.FirebaseApp;
     const { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } = window.FirebaseAuth;
-    // MUDANÇA: Usar Realtime Database
     const { getDatabase, ref, set, onValue } = window.FirebaseDatabase;
 
 
@@ -180,19 +175,25 @@
 
     // --- Configuração do Firebase ---
     
-    // !!!!!!!!!!! IMPORTANTE !!!!!!!!!!!
-    // !!!!!!!!!!! COLE A SUA CONFIGURAÇÃO DO FIREBASE AQUI !!!!!!!!!!!
+    // !!! O SEU CÓDIGO PESSOAL FOI COLADO AQUI !!!
+    // (Com as minhas correções para databaseURL e storageBucket)
     const firebaseConfig = {
-      apiKey: "COLE_AQUI_A_SUA_API_KEY",
-      authDomain: "COLE_AQUI_O_SEU_AUTH_DOMAIN",
-      projectId: "COLE_AQUI_O_SEU_PROJECT_ID",
-      storageBucket: "COLE_AQUI_O_SEU_STORAGE_BUCKET",
-      messagingSenderId: "COLE_AQUI_O_SEU_MESSAGING_SENDER_ID",
-      appId: "COLE_AQUI_O_SEU_APP_ID",
-      // !!!!!!!!!!! ADICIONE O SEU URL DA REALTIME DATABASE AQUI !!!!!!!!!!!
-      databaseURL: "COLE_AQUI_O_SEU_DATABASE_URL (https://...)"
+      apiKey: "AIzaSyADpB-lz2L2Wgbz95c3qvxicnOyp2vZIX0",
+      authDomain: "app-macrociclo.firebaseapp.com",
+      
+      // ADICIONADO: O URL da sua Realtime Database (com base no seu projectId)
+      databaseURL: "https://app-macrociclo-default-rtdb.europe-west1.firebasedatabase.app", 
+      
+      projectId: "app-macrociclo",
+      
+      // CORRIGIDO: O formato do storageBucket
+      storageBucket: "app-macrociclo.appspot.com", 
+      
+      messagingSenderId: "148841769521",
+      appId: "1:148841769521:web:6df606c4b956371e1cc310",
+      measurementId: "G-2Y9PM1S6Q2"
     };
-    // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     
     const appId = 'planer-taekwondo-prod'; // ID Fixo da App (para as regras da DB)
 
@@ -202,7 +203,6 @@
 
     try {
       app = initializeApp(firebaseConfig);
-      // MUDANÇA: Usar getDatabase()
       db = getDatabase(app);
       auth = getAuth(app);
     } catch (e) {
@@ -259,7 +259,7 @@
           desc: newDesc.trim(),
           date: newDate,
         };
-        onItemsChange([...(items || []), newItem]); // Garantir que 'items' é um array
+        onItemsChange([...(items || []), newItem]);
       };
 
       const handleRemove = (id) => {
@@ -971,7 +971,8 @@
                   <button onClick={() => handleRemoveUt(ut.id)} className="group text-left"><TrashIcon /></button>
                 </div>
               );
-            })}
+Doption>
+            ))}
           </div>
         </div>
       );
@@ -1006,17 +1007,15 @@
       const [userId, setUserId] = useState(null);
       const [isLoading, setIsLoading] = useState(true);
       
-      // MUDANÇA: Referência para a Realtime Database (RTDB)
       const dbRef = useMemo(() => {
         if (!userId || !db) return null;
-        // O caminho na RTDB é como um URL
         return ref(db, `artifacts/${appId}/users/${userId}/planerTkd`);
       }, [userId]);
 
 
       // --- Efeitos do Firebase ---
 
-      // Passo 1: Autenticação (inalterado)
+      // Passo 1: Autenticação
       useEffect(() => {
         if (!auth) {
           console.log("Firebase Auth não está pronto.");
@@ -1030,7 +1029,13 @@
           } else {
             console.log("Nenhum utilizador, a tentar autenticar anonimamente...");
             try {
-              await signInAnonymously(auth);
+              // Tenta autenticar (primeiro com token, depois anônimo)
+              const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+              if (token) {
+                 await signInWithCustomToken(auth, token);
+              } else {
+                 await signInAnonymously(auth);
+              }
             } catch (error) {
               console.error("Erro na autenticação:", error);
               setIsLoading(false);
@@ -1049,17 +1054,13 @@
         console.log("A tentar carregar dados da Realtime Database...");
         setIsLoading(true);
         
-        // onValue é o 'onSnapshot' da Realtime Database
         const unsubscribe = onValue(dbRef, (snapshot) => {
           if (snapshot.exists()) {
             console.log("Dados encontrados, a carregar plano...");
             const data = snapshot.val();
-            // Fundir dados da DB com o default
-            // É preciso garantir que os arrays vazios da DB não se tornem 'undefined'
             setPlan(prevPlan => ({
-              ...DEFAULT_STATE, // Começar sempre com o default
-              ...data, // Sobrescrever com os dados da DB
-              // Garantir que os arrays estão definidos
+              ...DEFAULT_STATE,
+              ...data,
               objectives: data.objectives || [],
               competitions: data.competitions || [],
               exams: data.exams || [],
@@ -1071,7 +1072,7 @@
             }));
           } else {
             console.log("Nenhum documento encontrado, a usar estado padrão.");
-            setPlan(DEFAULT_STATE); // Garantir que está no default
+            setPlan(DEFAULT_STATE);
           }
           setIsLoading(false);
         }, (error) => {
@@ -1088,12 +1089,10 @@
           return;
         }
         
-        // Não guardar se o plano for o default (acabou de carregar)
         if (plan === DEFAULT_STATE) return;
 
         const handler = setTimeout(() => {
           console.log("A guardar na Realtime Database...");
-          // 'set' é o 'setDoc' da Realtime Database
           set(dbRef, plan)
             .then(() => {
               console.log("Plano guardado com sucesso!");
@@ -1140,7 +1139,7 @@
         }
         
         const dailyLoads = Array(totalDays).fill(0);
-        (plan.unitsOfTraining || []).forEach(ut => { // Garantir que é um array
+        (plan.unitsOfTraining || []).forEach(ut => {
           if (!ut || !ut.date) return;
           const utDate = new Date(ut.date + 'T00:00:00Z');
           const dayIndex = daysBetween(seasonStartDate, utDate);
@@ -1295,39 +1294,4 @@
             </section>
             
             <section>
-              <MesocyclePlanner
-                mesoDefinitions={plan.mesoDefinitions}
-                mesocycles={plan.mesocycles}
-                onMesocyclesChange={(newItems) => handlePlanChange('mesocycles', newItems)}
-              />
-            </section>
-            
-            <section>
-              <MicrocyclePlanner
-                microDefinitions={plan.microDefinitions}
-                microcycles={plan.microcycles}
-                onMicrocyclesChange={(newItems) => handlePlanChange('microcycles', newItems)}
-              />
-            </section>
-            
-            <section>
-              <UnitOfTrainingPlanner
-                microcycles={plan.microcycles} 
-                unitsOfTraining={plan.unitsOfTraining}
-                onUnitsOfTrainingChange={(newItems) => handlePlanChange('unitsOfTraining', newItems)}
-              />
-            </section>
-
-          </div>
-        </div>
-      );
-    }
-    
-    // --- Renderizar a App ---
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-    
-  </script>
-
-</body>
-</html>
+              <Mesoc
