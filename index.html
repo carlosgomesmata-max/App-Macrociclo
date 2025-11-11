@@ -1,4 +1,4 @@
->
+<!DOCTYPE html>
 <html lang="pt-PT" class="h-full">
 <head>
   <meta charset="UTF-8">
@@ -66,12 +66,16 @@
     /* Estilos de cores */
     .border-blue-400 { border-color: #60A5FA; }
     .text-blue-400 { color: #60A5FA; }
+    .bg-blue-400 { background-color: #60A5FA; }
     .border-red-400 { border-color: #F87171; }
     .text-red-400 { color: #F87171; }
+    .bg-red-400 { background-color: #F87171; }
     .border-yellow-400 { border-color: #FACC15; }
     .text-yellow-400 { color: #FACC15; }
+    .bg-yellow-400 { background-color: #FACC15; }
     .border-green-400 { border-color: #4ADE80; }
     .text-green-400 { color: #4ADE80; }
+    .bg-green-400 { background-color: #4ADE80; }
   </style>
 </head>
 <body class="bg-gray-900">
@@ -176,19 +180,12 @@
     // --- Configuração do Firebase ---
     
     // !!! O SEU CÓDIGO PESSOAL FOI COLADO AQUI !!!
-    // (Com a CORREÇÃO para o storageBucket)
     const firebaseConfig = {
       apiKey: "AIzaSyADpB-lz2L2Wgbz95c3qvxicnOyp2vZIX0",
       authDomain: "app-macrociclo.firebaseapp.com",
-      
-      // ADICIONADO: O URL da sua Realtime Database (com base no seu projectId)
       databaseURL: "https://app-macrociclo-default-rtdb.europe-west1.firebasedatabase.app", 
-      
       projectId: "app-macrociclo",
-      
-      // CORRIGIDO: De volta ao valor que você forneceu
-      storageBucket: "app-macrociclo.firebasestorage.app", 
-      
+      storageBucket: "app-macrociclo.firebasestorage.app", // CORRIGIDO: De volta ao que você colou
       messagingSenderId: "148841769521",
       appId: "1:148841769521:web:6df606c4b956371e1cc310",
       measurementId: "G-2Y9PM1S6Q2"
@@ -315,6 +312,16 @@
 
       const safeTitle = title || 'Itens';
       const safeItems = Array.isArray(items) ? items : [];
+      
+      // REVISÃO DE DESIGN: Cor do Ponto
+      const dotColor = useMemo(() => {
+         const upperTitle = (title || '').toUpperCase();
+         if (upperTitle === 'OBJETIVOS') return 'bg-blue-400';
+         if (upperTitle === 'COMPETIÇÕES') return 'bg-red-400';
+         if (upperTitle.includes('EXAMES')) return 'bg-yellow-400';
+         if (upperTitle === 'EVENTOS') return 'bg-green-400';
+         return 'bg-gray-400';
+      }, [title]);
 
       return (
         <div className="bg-gray-800 p-3 rounded-lg shadow-md flex flex-col h-full">
@@ -370,13 +377,17 @@
                 ) : (
                   // Modo de Visualização
                   <div className="flex justify-between items-center group">
-                    <div>
-                      <p className="text-xs text-gray-100">{item.desc}</p>
-                      <p className="text-[11px] text-gray-400">
-                        {item.date 
-                          ? new Date(item.date).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' }) 
-                          : 'Sem data'}
-                      </p>
+                    {/* REVISÃO DE DESIGN: Ponto colorido adicionado */}
+                    <div className="flex items-center space-x-2">
+                      <span className={`inline-block w-2 h-2 rounded-full ${dotColor}`}></span>
+                      <div>
+                        <p className="text-xs text-gray-100">{item.desc}</p>
+                        <p className="text-[11px] text-gray-400">
+                          {item.date 
+                            ? new Date(item.date).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' }) 
+                            : 'Sem data'}
+                        </p>
+                      </div>
                     </div>
                     <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => handleStartEdit(item)}><EditIcon /></button>
@@ -669,7 +680,7 @@
       const { minPerf, maxPerf } = useMemo(() => {
         if (!performanceData || performanceData.length === 0) return { minPerf: 0, maxPerf: 0 };
         const min = Math.min(...performanceData);
-        const max = Math.max(...performanceData, 0);
+        const max = Math.max(...performanceData, 0); 
         return { minPerf: min, maxPerf: max };
       }, [performanceData]);
       const range = maxPerf - minPerf;
@@ -734,8 +745,9 @@
         onPeriodsChange(safePeriods.filter(period => period.id !== id));
       };
       return (
-        <div className="bg-gray-800 p-3 rounded-lg shadow-md">
-          <h3 className="text-base font-semibold text-white mb-3">Período</h3>
+        /* REVISÃO DE DESIGN: Removido bg-gray-800 e padding */
+        <div>
+          {/* <h3 className="text-base font-semibold text-white mb-3">Período</h3> // Título removido, já está na aba */ }
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end mb-3 p-3 bg-gray-900 rounded-lg">
             <div>
               <label className="text-[11px] font-medium text-gray-400">Tipo de Período</label>
@@ -792,8 +804,9 @@
         onMesocyclesChange(safeMesocycles.filter(meso => meso.id !== id));
       };
       return (
-        <div className="bg-gray-800 p-3 rounded-lg shadow-md">
-          <h3 className="text-base font-semibold text-white mb-3">Mesociclo</h3>
+        /* REVISÃO DE DESIGN: Removido bg-gray-800 e padding */
+        <div>
+          {/* <h3 className="text-base font-semibold text-white mb-3">Mesociclo</h3> // Título removido, já está na aba */ }
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end mb-3 p-3 bg-gray-900 rounded-lg">
             <div>
               <label className="text-[11px] font-medium text-gray-400">Tipo de Mesociclo</label>
@@ -851,8 +864,9 @@
         onMicrocyclesChange(safeMicrocycles.filter(micro => micro.id !== id));
       };
       return (
-        <div className="bg-gray-800 p-3 rounded-lg shadow-md">
-          <h3 className="text-base font-semibold text-white mb-3">Microciclo</h3>
+        /* REVISÃO DE DESIGN: Removido bg-gray-800 e padding */
+        <div>
+          {/* <h3 className="text-base font-semibold text-white mb-3">Microciclo</h3> // Título removido, já está na aba */ }
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end mb-3 p-3 bg-gray-900 rounded-lg">
             <div>
               <label className="text-[11px] font-medium text-gray-400">Número</label>
@@ -917,8 +931,9 @@
         onUnitsOfTrainingChange(safeUnits.filter(ut => ut.id !== id));
       };
       return (
-        <div className="bg-gray-800 p-3 rounded-lg shadow-md">
-          <h3 className="text-base font-semibold text-white mb-3">Unidade de Treino (UT)</h3>
+        /* REVISÃO DE DESIGN: Removido bg-gray-800 e padding */
+        <div>
+          {/* <h3 className="text-base font-semibold text-white mb-3">Unidade de Treino (UT)</h3> // Título removido, já está na aba */ }
           <div className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end mb-3 p-3 bg-gray-900 rounded-lg">
             <div>
               <label className="text-[11px] font-medium text-gray-400">Microciclo (Pai)</label>
@@ -935,16 +950,22 @@
               <label className="text-[11px] font-medium text-gray-400">Data da UT</label>
               <input type="date" value={newUtDate} onChange={(e) => setNewUtDate(e.target.value)} className="input-base" />
             </div>
+            
             <div>
-              <label className="text-[11px] font-medium text-gray-400">Intensidade (1-5)</label>
-              <select value={newUtIntensity} onChange={(e) => setNewUtIntensity(e.target.value)} className="input-base text-xs">
-                <option value="1">1 (Muito Leve)</option>
-                <option value="2">2 (Leve)</option>
-                <option value="3">3 (Moderado)</option>
-                <option value="4">4 (Difícil)</option>
-                <option value="5">5 (Muito Difícil)</option>
+              <label className="text-[11px] font-medium text-gray-400">Intensidade</label>
+              <select
+                value={newUtIntensity}
+                onChange={(e) => setNewUtIntensity(e.target.value)}
+                className="input-base text-xs"
+              >
+                <option value="1">1- Fraca 50%</option>
+                <option value="2">2- Baixa 70%</option>
+                <option value="3">3- Média 70-85%</option>
+                <option value="4">4- Alta 85-95%</option>
+                <option value="5">5- Extrema 95-100%</option>
               </select>
             </div>
+            
             <div>
               <label className="text-[11px] font-medium text-gray-400">Duração (min)</label>
               <input type="number" value={newUtDuration} onChange={(e) => setNewUtDuration(e.target.value)} className="input-base" placeholder="ex: 90" min="0" />
@@ -1013,6 +1034,8 @@
       const [plan, setPlan] = useState(DEFAULT_STATE);
       const [userId, setUserId] = useState(null);
       const [isLoading, setIsLoading] = useState(true);
+      // REVISÃO DE DESIGN: Estado para as abas
+      const [activePlannerTab, setActivePlannerTab] = useState('periodo');
       
       const dbRef = useMemo(() => {
         if (!userId || !db) return null;
@@ -1064,15 +1087,20 @@
           if (snapshot.exists()) {
             console.log("Dados encontrados, a carregar plano...");
             const data = snapshot.val();
+            // Garantir que todos os arrays/objetos do default state existem
             setPlan(prevPlan => ({
               ...DEFAULT_STATE,
               ...data,
+              titles: data.titles || DEFAULT_STATE.titles,
               objectives: data.objectives || [],
               competitions: data.competitions || [],
               exams: data.exams || [],
               events: data.events || [],
+              periodDefinitions: data.periodDefinitions || DEFAULT_STATE.periodDefinitions,
               periods: data.periods || [],
+              mesoDefinitions: data.mesoDefinitions || DEFAULT_STATE.mesoDefinitions,
               mesocycles: data.mesocycles || [],
+              microDefinitions: data.microDefinitions || DEFAULT_STATE.microDefinitions,
               microcycles: data.microcycles || [],
               unitsOfTraining: data.unitsOfTraining || [],
             }));
@@ -1095,6 +1123,7 @@
           return;
         }
         
+        // Evitar guardar o estado padrão logo ao carregar
         if (plan === DEFAULT_STATE && userId) {
              const hasLoaded = Object.keys(plan).some(key => Array.isArray(plan[key]) && plan[key].length > 0);
              if (!hasLoaded) return;
@@ -1189,13 +1218,20 @@
       }, [plan.objectives, plan.competitions, plan.exams, plan.events]);
       
 
-      if (isLoading) {
+      if (isLoading && !userId) { // Apenas mostrar loading inicial
         return (
           <div className="flex justify-center items-center min-h-screen bg-gray-900 text-gray-400">
-            A carregar o seu plano...
+            A ligar ao servidor...
           </div>
         );
       }
+      
+      // Definições Padrão (agora lidas do estado 'plan')
+      const { 
+        periodDefinitions, 
+        mesoDefinitions, 
+        microDefinitions 
+      } = plan;
       
       return (
         <div className="bg-gray-900 min-h-screen p-3 md:p-6 text-gray-200 font-sans">
@@ -1261,7 +1297,10 @@
               </div>
             </section>
 
-            <section className="space-y-3">
+            {/* REVISÃO DE DESIGN: Linhas temporais agrupadas */}
+            <section className="space-y-3 bg-gray-800 p-3 rounded-lg shadow-md">
+              <h2 className="text-xl font-semibold text-white mb-4 px-1.5">Painel de Linhas Temporais</h2>
+              
               <MonthsTimeline rotatedMonths={seasonData.rotatedMonths} />
               <EventsDescriptionRow rotatedMonths={seasonData.rotatedMonths} events={allEvents} />
               <PeriodsGanttChart 
@@ -1290,36 +1329,61 @@
               />
             </section>
             
-            <section>
-              <PeriodPlanner
-                periodDefinitions={plan.periodDefinitions}
-                periods={plan.periods}
-                onPeriodsChange={(newItems) => handlePlanChange('periods', newItems)}
-              />
-            </section>
-            
-            <section>
-              <MesocyclePlanner
-                mesoDefinitions={plan.mesoDefinitions}
-                mesocycles={plan.mesocycles}
-                onMesocyclesChange={(newItems) => handlePlanChange('mesocycles', newItems)}
-              />
-            </section>
-            
-            <section>
-              <MicrocyclePlanner
-                microDefinitions={plan.microDefinitions}
-                microcycles={plan.microcycles}
-                onMicrocyclesChange={(newItems) => handlePlanChange('microcycles', newItems)}
-              />
-            </section>
-            
-            <section>
-              <UnitOfTrainingPlanner
-                microcycles={plan.microcycles} 
-                unitsOfTraining={plan.unitsOfTraining}
-                onUnitsOfTrainingChange={(newItems) => handlePlanChange('unitsOfTraining', newItems)}
-              />
+            {/* REVISÃO DE DESIGN: Planeadores com Abas */}
+            <section className="bg-gray-800 p-3 rounded-lg shadow-md">
+              <h2 className="text-xl font-semibold text-white mb-4 px-1.5">Planeadores</h2>
+              
+              {/* Controles das Abas */}
+              <div className="flex space-x-1 rounded-lg bg-gray-900 p-1 mb-4">
+                {['periodo', 'mesociclo', 'microciclo', 'ut'].map(tab => {
+                  const isActive = activePlannerTab === tab;
+                  const text = { periodo: 'Período', mesociclo: 'Mesociclo', microciclo: 'Microciclo', ut: 'Unidade de Treino' }[tab];
+                  return (
+                    <button
+                      key={tab}
+                      onClick={() => setActivePlannerTab(tab)}
+                      className={`w-full rounded-lg py-2 text-sm font-medium leading-5 transition-colors
+                        ${isActive ? 'bg-blue-600 text-white shadow' : 'text-gray-300 hover:bg-gray-700 hover:text-white'}
+                        focus:outline-none focus:ring-2 ring-offset-2 ring-offset-gray-800 ring-white ring-opacity-60
+                      `}
+                    >
+                      {text}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Conteúdo das Abas */}
+              <div className="mt-2">
+                {activePlannerTab === 'periodo' && (
+                  <PeriodPlanner
+                    periodDefinitions={periodDefinitions}
+                    periods={plan.periods}
+                    onPeriodsChange={(newItems) => handlePlanChange('periods', newItems)}
+                  />
+                )}
+                {activePlannerTab === 'mesociclo' && (
+                  <MesocyclePlanner
+                    mesoDefinitions={mesoDefinitions}
+                    mesocycles={plan.mesocycles}
+                    onMesocyclesChange={(newItems) => handlePlanChange('mesocycles', newItems)}
+                  />
+                )}
+                {activePlannerTab === 'microciclo' && (
+                  <MicrocyclePlanner
+                    microDefinitions={microDefinitions}
+                    microcycles={plan.microcycles}
+                    onMicrocyclesChange={(newItems) => handlePlanChange('microcycles', newItems)}
+                  />
+                )}
+                {activePlannerTab === 'ut' && (
+                  <UnitOfTrainingPlanner
+                    microcycles={plan.microcycles} 
+                    unitsOfTraining={plan.unitsOfTraining}
+                    onUnitsOfTrainingChange={(newItems) => handlePlanChange('unitsOfTraining', newItems)}
+                  />
+                )}
+              </div>
             </section>
 
           </div>
