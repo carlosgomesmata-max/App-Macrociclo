@@ -21,6 +21,7 @@
     import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
     
+    // Tornar as funções do Firebase acessíveis globalmente para o script Babel
     window.FirebaseApp = { initializeApp };
     window.FirebaseAuth = { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged };
     window.FirebaseDatabase = { getDatabase, ref, set, onValue };
@@ -29,41 +30,66 @@
   <style>
     /* Estilos Globais */
     body { 
-      background-color: #111827;
+      background-color: #111827; /* bg-gray-900 */
       font-family: 'Inter', sans-serif;
     }
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
+    
+    /* Estilos dos Inputs (Formulários) */
     .input-base {
-      background-color: #374151;
-      border: 1px solid #4B5563;
-      color: #F3F4F6;
-      border-radius: 0.375rem;
-      padding: 0.375rem 0.625rem;
+      background-color: #374151; /* gray-700 */
+      border: 1px solid #4B5563; /* gray-600 */
+      color: #F3F4F6; /* gray-100 */
+      border-radius: 0.375rem; /* rounded-md */
+      padding: 0.375rem 0.625rem; /* py-1.5 px-2.5 */
       width: 100%;
-      font-size: 0.75rem; 
+      font-size: 0.75rem; /* text-xs */
     }
     .input-base:focus {
       outline: none;
-      border-color: #3B82F6;
-      box-shadow: 0 0 0 2px #1e40af;
+      border-color: #3B82F6; /* blue-500 */
+      box-shadow: 0 0 0 2px #1e40af; /* Anel de foco customizado */
     }
+    
+    /* Estilo do calendário do input date */
     input[type="date"]::-webkit-calendar-picker-indicator {
       opacity: 1;
       background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%239CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2" /><line x1="16" x2="16" y1="2" y2="6" /><line x1="8" x2="8" y1="2" y2="6" /><line x1="3" x2="21" y1="10" y2="10" /></svg>') no-repeat;
       cursor: pointer;
-      filter: invert(0.1); 
+      filter: invert(0.1); /* Ajuste leve para o tema escuro */
     }
+    
+    /* Estilos de Botões */
     .button-base-blue {
-      background-color: #2563EB;
+      background-color: #2563EB; /* blue-600 */
       color: white;
       padding: 0.375rem 0.625rem;
       border-radius: 0.375rem;
       font-weight: 500;
+      transition: background-color 0.2s;
     }
     .button-base-blue:hover {
-      background-color: #1D4ED8;
+      background-color: #1D4ED8; /* blue-700 */
     }
-    /* Estilos de cores */
+    .button-base-gray {
+      background-color: #4B5563; /* gray-600 */
+      color: white;
+      padding: 0.25rem 0.5rem; /* py-1 px-2 */
+      border-radius: 0.375rem;
+      font-weight: 500;
+      font-size: 0.75rem; /* text-xs */
+      transition: background-color 0.2s;
+    }
+    .button-base-gray:hover {
+      background-color: #6B7280; /* gray-500 */
+    }
+    .button-disabled {
+      background-color: #374151; /* gray-700 */
+      color: #9CA3AF; /* gray-400 */
+      cursor: not-allowed;
+    }
+    
+    /* Estilos de Cores para Legendas */
     .border-blue-400 { border-color: #60A5FA; }
     .text-blue-400 { color: #60A5FA; }
     .bg-blue-400 { background-color: #60A5FA; }
@@ -76,12 +102,71 @@
     .border-green-400 { border-color: #4ADE80; }
     .text-green-400 { color: #4ADE80; }
     .bg-green-400 { background-color: #4ADE80; }
+
+    /* Estilos de Impressão (NOVO) */
+    @media print {
+      /* Definir a página para horizontal */
+      @page {
+        size: landscape;
+      }
+      
+      body {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+      }
+      /* Esconder tudo exceto o painel de linhas temporais */
+      body > #root > div > :not(#timeline-panel-print) {
+        display: none;
+      }
+      #timeline-panel-print {
+        display: block !important;
+        box-shadow: none !important;
+        background-color: #ffffff !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+      /* Forçar cores de fundo a imprimir */
+      .bg-gray-700, .bg-gray-600, .bg-blue-500, .bg-green-500, .bg-yellow-500,
+      .bg-indigo-500, .bg-pink-500, .bg-purple-600, .bg-blue-600, .bg-green-600,
+      .bg-yellow-600, .bg-cyan-600, .bg-lime-600, .bg-red-700, .bg-orange-700,
+      .bg-amber-700, .bg-teal-700, .bg-sky-700, .bg-fuchsia-700, .bg-gray-400,
+      .bg-blue-400, .bg-yellow-400, .bg-red-600 {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        background-color: var(--tw-bg-opacity, 1) !important;
+      }
+      /* Ajustar texto para impressão */
+      .text-gray-200, .text-gray-300, .text-gray-400, .text-white {
+        color: #000000 !important;
+      }
+      .text-gray-900 {
+        color: #000000 !important;
+      }
+      .text-white {
+        color: #ffffff !important;
+      }
+      .truncate {
+        overflow: visible !important;
+        white-space: normal !important;
+      }
+      /* Garantir que as grelhas funcionam */
+      .grid {
+        display: grid !important;
+      }
+      .grid-cols-12 {
+        grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+      }
+    }
+    
   </style>
 </head>
 <body class="bg-gray-900">
 
   <!-- 5. Onde a aplicação React será renderizada -->
   <div id="root"></div>
+
+  <!-- Ficheiro de Input Escondido para Importação -->
+  <input type="file" id="import-file-input" accept=".json" class="hidden" />
 
   <!-- 6. O CÓDIGO DA NOSSA APP (colado do .jsx) -->
   <script type="text/babel">
@@ -136,6 +221,17 @@
         <line x1="6" y1="6" x2="18" y2="18" />
       </svg>
     );
+    // (Ícones para os botões do cabeçalho)
+    const DownloadIcon = () => (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    );
+    const UploadIcon = () => (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    );
+    const PrintIcon = () => (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+    );
+
 
     // --- Funções Utilitárias Globais ---
     const formatDate = (dateString) => {
@@ -185,7 +281,7 @@
       authDomain: "app-macrociclo.firebaseapp.com",
       databaseURL: "https://app-macrociclo-default-rtdb.europe-west1.firebasedatabase.app", 
       projectId: "app-macrociclo",
-      storageBucket: "app-macrociclo.firebasestorage.app", // CORRIGIDO: De volta ao que você colou
+      storageBucket: "app-macrociclo.firebasestorage.app", // Corrigido de volta para o seu original
       messagingSenderId: "148841769521",
       appId: "1:148841769521:web:6df606c4b956371e1cc310",
       measurementId: "G-2Y9PM1S6Q2"
@@ -210,8 +306,10 @@
 
 
     // --- Componentes da UI ---
-    function AppHeader({ userId }) {
-      const btnDisabled = "px-2 py-1 text-xs bg-gray-800 text-gray-500 rounded-md cursor-not-allowed flex items-center gap-1.5";
+    
+    function AppHeader({ userId, onImport, onExport, onPrint }) {
+      const btnCsvDisabled = "button-base-gray button-disabled flex items-center gap-1.5";
+      
       return (
         <div className="flex flex-col md:flex-row justify-end items-center gap-2 mb-3 p-3 bg-gray-900 rounded-lg shadow-lg">
           <div className="flex-1 text-left">
@@ -228,10 +326,20 @@
               </p>
             )}
           </div>
-          <button className={btnDisabled} disabled>Importar CSV</button>
-          <button className={btnDisabled} disabled>Exportar CSV</button>
-          <button className={btnDisabled} disabled>Guardar JSON</button>
-          <button className={btnDisabled} disabled>Imprimir</button>
+          
+          {/* BOTÕES ATUALIZADOS */}
+          <button onClick={onImport} className="button-base-gray flex items-center gap-1.5">
+            <UploadIcon /> Abrir Macrociclo (JSON)
+          </button>
+          <button onClick={onExport} className="button-base-gray flex items-center gap-1.5">
+            <DownloadIcon /> Guardar Macrociclo (JSON)
+          </button>
+          <button className={btnCsvDisabled} disabled title="Utilize Guardar JSON para guardar a estrutura completa">
+            Exportar Excel
+          </button>
+          <button onClick={onPrint} className="button-base-gray flex items-center gap-1.5">
+            <PrintIcon /> Exportar PDF / Imprimir
+          </button>
         </div>
       );
     }
@@ -313,7 +421,6 @@
       const safeTitle = title || 'Itens';
       const safeItems = Array.isArray(items) ? items : [];
       
-      // REVISÃO DE DESIGN: Cor do Ponto
       const dotColor = useMemo(() => {
          const upperTitle = (title || '').toUpperCase();
          if (upperTitle === 'OBJETIVOS') return 'bg-blue-400';
@@ -325,7 +432,6 @@
 
       return (
         <div className="bg-gray-800 p-3 rounded-lg shadow-md flex flex-col h-full">
-          {/* Cabeçalho da Coluna (Editável) */}
           <div className="flex items-center justify-center mb-3 min-h-[26px]">
             {isEditingTitle ? (
               <div className="flex items-center gap-2">
@@ -348,14 +454,11 @@
               </React.Fragment>
             )}
           </div>
-
-          {/* Lista de Itens */}
           <div className="space-y-1.5 mb-3 flex-grow max-h-40 overflow-y-auto min-h-[30px]">
             {safeItems.length === 0 && <span className="text-xs text-gray-500 text-center block">Sem {safeTitle.toLowerCase()}</span>}
             {safeItems.map(item => (
               <div key={item.id} className="bg-gray-700 p-1.5 rounded">
                 {editingItemId === item.id ? (
-                  // Modo de Edição
                   <div className="space-y-1.5">
                     <input
                       type="text"
@@ -375,9 +478,7 @@
                     </div>
                   </div>
                 ) : (
-                  // Modo de Visualização
                   <div className="flex justify-between items-center group">
-                    {/* REVISÃO DE DESIGN: Ponto colorido adicionado */}
                     <div className="flex items-center space-x-2">
                       <span className={`inline-block w-2 h-2 rounded-full ${dotColor}`}></span>
                       <div>
@@ -398,8 +499,6 @@
               </div>
             ))}
           </div>
-
-          {/* Formulário de Adicionar */}
           <div className="space-y-1.5 border-t border-gray-700 pt-3">
             <label htmlFor={`new-desc-${safeTitle}`} className="text-[11px] font-medium text-gray-400">Descrição</label>
             <input
@@ -745,9 +844,7 @@
         onPeriodsChange(safePeriods.filter(period => period.id !== id));
       };
       return (
-        /* REVISÃO DE DESIGN: Removido bg-gray-800 e padding */
         <div>
-          {/* <h3 className="text-base font-semibold text-white mb-3">Período</h3> // Título removido, já está na aba */ }
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end mb-3 p-3 bg-gray-900 rounded-lg">
             <div>
               <label className="text-[11px] font-medium text-gray-400">Tipo de Período</label>
@@ -804,9 +901,7 @@
         onMesocyclesChange(safeMesocycles.filter(meso => meso.id !== id));
       };
       return (
-        /* REVISÃO DE DESIGN: Removido bg-gray-800 e padding */
         <div>
-          {/* <h3 className="text-base font-semibold text-white mb-3">Mesociclo</h3> // Título removido, já está na aba */ }
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end mb-3 p-3 bg-gray-900 rounded-lg">
             <div>
               <label className="text-[11px] font-medium text-gray-400">Tipo de Mesociclo</label>
@@ -864,9 +959,7 @@
         onMicrocyclesChange(safeMicrocycles.filter(micro => micro.id !== id));
       };
       return (
-        /* REVISÃO DE DESIGN: Removido bg-gray-800 e padding */
         <div>
-          {/* <h3 className="text-base font-semibold text-white mb-3">Microciclo</h3> // Título removido, já está na aba */ }
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end mb-3 p-3 bg-gray-900 rounded-lg">
             <div>
               <label className="text-[11px] font-medium text-gray-400">Número</label>
@@ -931,9 +1024,7 @@
         onUnitsOfTrainingChange(safeUnits.filter(ut => ut.id !== id));
       };
       return (
-        /* REVISÃO DE DESIGN: Removido bg-gray-800 e padding */
         <div>
-          {/* <h3 className="text-base font-semibold text-white mb-3">Unidade de Treino (UT)</h3> // Título removido, já está na aba */ }
           <div className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end mb-3 p-3 bg-gray-900 rounded-lg">
             <div>
               <label className="text-[11px] font-medium text-gray-400">Microciclo (Pai)</label>
@@ -944,13 +1035,12 @@
             </div>
             <div>
               <label className="text-[11px] font-medium text-gray-400">Nome da UT (ex: UT1)</label>
-              <input type="text" value={newUtName} onChange={(e) => setNewUtName(e.target.value)} className="input-base" placeholder="UT1" />
+              <input type="text" value={newUtName} onChange={(e) => setNewUtName(e.g.target.value)} className="input-base" placeholder="UT1" />
             </div>
             <div>
               <label className="text-[11px] font-medium text-gray-400">Data da UT</label>
               <input type="date" value={newUtDate} onChange={(e) => setNewUtDate(e.target.value)} className="input-base" />
             </div>
-            
             <div>
               <label className="text-[11px] font-medium text-gray-400">Intensidade</label>
               <select
@@ -958,6 +1048,7 @@
                 onChange={(e) => setNewUtIntensity(e.target.value)}
                 className="input-base text-xs"
               >
+                {/* ESCALA DE INTENSIDADE ATUALIZADA */}
                 <option value="1">1- Fraca 50%</option>
                 <option value="2">2- Baixa 70%</option>
                 <option value="3">3- Média 70-85%</option>
@@ -965,7 +1056,6 @@
                 <option value="5">5- Extrema 95-100%</option>
               </select>
             </div>
-            
             <div>
               <label className="text-[11px] font-medium text-gray-400">Duração (min)</label>
               <input type="number" value={newUtDuration} onChange={(e) => setNewUtDuration(e.target.value)} className="input-base" placeholder="ex: 90" min="0" />
@@ -1015,6 +1105,7 @@
       events: [],
       seasonYear: new Date().getFullYear(),
       startMonth: 0,
+      // Definições ficam 'hardcoded' agora que a secção de config foi removida
       periodDefinitions: ['Preparatório', 'Competitivo', 'Transição'],
       periods: [],
       mesoDefinitions: ['Base', 'Desenvolvimento', 'Controlo', 'Competição', 'Manutenção'],
@@ -1034,7 +1125,6 @@
       const [plan, setPlan] = useState(DEFAULT_STATE);
       const [userId, setUserId] = useState(null);
       const [isLoading, setIsLoading] = useState(true);
-      // REVISÃO DE DESIGN: Estado para as abas
       const [activePlannerTab, setActivePlannerTab] = useState('periodo');
       
       const dbRef = useMemo(() => {
@@ -1045,7 +1135,6 @@
 
       // --- Efeitos do Firebase ---
 
-      // Passo 1: Autenticação
       useEffect(() => {
         if (!auth) {
           console.log("Firebase Auth não está pronto.");
@@ -1074,7 +1163,6 @@
         return () => unsubscribe();
       }, []);
 
-      // Passo 2: Carregar Dados
       useEffect(() => {
         if (!dbRef) {
           return;
@@ -1087,20 +1175,17 @@
           if (snapshot.exists()) {
             console.log("Dados encontrados, a carregar plano...");
             const data = snapshot.val();
-            // Garantir que todos os arrays/objetos do default state existem
+            // Fundir dados da DB com o default
             setPlan(prevPlan => ({
-              ...DEFAULT_STATE,
-              ...data,
+              ...DEFAULT_STATE, // Começar com o default (para o caso de novas definições)
+              ...data, // Sobrescrever com os dados guardados
               titles: data.titles || DEFAULT_STATE.titles,
               objectives: data.objectives || [],
               competitions: data.competitions || [],
               exams: data.exams || [],
               events: data.events || [],
-              periodDefinitions: data.periodDefinitions || DEFAULT_STATE.periodDefinitions,
               periods: data.periods || [],
-              mesoDefinitions: data.mesoDefinitions || DEFAULT_STATE.mesoDefinitions,
               mesocycles: data.mesocycles || [],
-              microDefinitions: data.microDefinitions || DEFAULT_STATE.microDefinitions,
               microcycles: data.microcycles || [],
               unitsOfTraining: data.unitsOfTraining || [],
             }));
@@ -1117,18 +1202,18 @@
         return () => unsubscribe();
       }, [dbRef]);
 
-      // Passo 3: Guardar Dados
+      // Debounce para guardar dados
       useEffect(() => {
         if (isLoading || !dbRef) {
           return;
         }
         
-        // Evitar guardar o estado padrão logo ao carregar
-        if (plan === DEFAULT_STATE && userId) {
-             const hasLoaded = Object.keys(plan).some(key => Array.isArray(plan[key]) && plan[key].length > 0);
-             if (!hasLoaded) return;
+        // Não guardar se o plano for idêntico ao estado inicial
+        if (JSON.stringify(plan) === JSON.stringify(DEFAULT_STATE)) {
+           // console.log("A evitar guardar o estado padrão.");
+           return;
         }
-
+        
         const handler = setTimeout(() => {
           console.log("A guardar na Realtime Database...");
           set(dbRef, plan)
@@ -1143,7 +1228,7 @@
         return () => {
           clearTimeout(handler);
         };
-      }, [plan, dbRef, isLoading, userId]);
+      }, [plan, dbRef, isLoading]);
 
 
       // --- Funções de "Set" para o estado ---
@@ -1157,6 +1242,58 @@
           ...prevPlan,
           titles: { ...prevPlan.titles, [colKey]: newTitle }
         }));
+      };
+
+      // --- Funções de Import/Export/Print (NOVAS) ---
+      
+      const handleExport = () => {
+        try {
+          const jsonString = JSON.stringify(plan);
+          const blob = new Blob([jsonString], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `macrociclo_${new Date().toISOString().split('T')[0]}.json`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        } catch (error) {
+          console.error("Erro ao exportar JSON:", error);
+        }
+      };
+
+      const handleImport = () => {
+        const fileInput = document.getElementById('import-file-input');
+        
+        fileInput.onchange = null; // Limpar listener antigo
+        fileInput.onchange = (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            try {
+              const importedData = JSON.parse(event.target.result);
+              if (importedData && importedData.seasonYear && importedData.titles) {
+                // Fundir com o default para garantir que todas as chaves existem
+                setPlan({...DEFAULT_STATE, ...importedData});
+                console.log("Plano importado com sucesso.");
+              } else {
+                throw new Error("Ficheiro JSON inválido ou não é um ficheiro de macrociclo.");
+              }
+            } catch (error) {
+              console.error("Erro ao importar JSON:", error);
+            }
+          };
+          reader.readAsText(file);
+        };
+        
+        fileInput.click();
+      };
+      
+      const handlePrint = () => {
+        window.print();
       };
 
       // --- Memos de Cálculo (Performance, etc.) ---
@@ -1177,7 +1314,8 @@
         }
         
         const dailyLoads = Array(totalDays).fill(0);
-        (plan.unitsOfTraining || []).forEach(ut => {
+        const safeUnits = Array.isArray(plan.unitsOfTraining) ? plan.unitsOfTraining : [];
+        safeUnits.forEach(ut => {
           if (!ut || !ut.date) return;
           const utDate = new Date(ut.date + 'T00:00:00Z');
           const dayIndex = daysBetween(seasonStartDate, utDate);
@@ -1210,15 +1348,15 @@
 
       const allEvents = useMemo(() => {
         return [
-          ...(plan.objectives || []).map(e => ({ ...e, color: 'bg-blue-400' })),
-          ...(plan.competitions || []).map(e => ({ ...e, color: 'bg-red-400' })),
-          ...(plan.exams || []).map(e => ({ ...e, color: 'bg-yellow-400' })),
-          ...(plan.events || []).map(e => ({ ...e, color: 'bg-green-400' })),
+          ...(Array.isArray(plan.objectives) ? plan.objectives : []).map(e => ({ ...e, color: 'bg-blue-400' })),
+          ...(Array.isArray(plan.competitions) ? plan.competitions : []).map(e => ({ ...e, color: 'bg-red-400' })),
+          ...(Array.isArray(plan.exams) ? plan.exams : []).map(e => ({ ...e, color: 'bg-yellow-400' })),
+          ...(Array.isArray(plan.events) ? plan.events : []).map(e => ({ ...e, color: 'bg-green-400' })),
         ];
       }, [plan.objectives, plan.competitions, plan.exams, plan.events]);
       
 
-      if (isLoading && !userId) { // Apenas mostrar loading inicial
+      if (isLoading && !userId) { 
         return (
           <div className="flex justify-center items-center min-h-screen bg-gray-900 text-gray-400">
             A ligar ao servidor...
@@ -1226,7 +1364,6 @@
         );
       }
       
-      // Definições Padrão (agora lidas do estado 'plan')
       const { 
         periodDefinitions, 
         mesoDefinitions, 
@@ -1237,7 +1374,12 @@
         <div className="bg-gray-900 min-h-screen p-3 md:p-6 text-gray-200 font-sans">
           
           <div className="max-w-7xl mx-auto space-y-3">
-            <AppHeader userId={userId} />
+            <AppHeader 
+              userId={userId}
+              onImport={handleImport}
+              onExport={handleExport}
+              onPrint={handlePrint}
+            />
 
             <section className="bg-gray-800 p-3 rounded-lg shadow-md">
               <div className="flex justify-between items-center mb-3">
@@ -1298,25 +1440,25 @@
             </section>
 
             {/* REVISÃO DE DESIGN: Linhas temporais agrupadas */}
-            <section className="space-y-3 bg-gray-800 p-3 rounded-lg shadow-md">
+            <section id="timeline-panel-print" className="space-y-3 bg-gray-800 p-3 rounded-lg shadow-md">
               <h2 className="text-xl font-semibold text-white mb-4 px-1.5">Painel de Linhas Temporais</h2>
               
               <MonthsTimeline rotatedMonths={seasonData.rotatedMonths} />
               <EventsDescriptionRow rotatedMonths={seasonData.rotatedMonths} events={allEvents} />
               <PeriodsGanttChart 
-                periods={plan.periods}
+                periods={plan.periods || []}
                 rotatedMonths={seasonData.rotatedMonths}
               />
               <MesocyclesGanttChart 
-                mesocycles={plan.mesocycles}
+                mesocycles={plan.mesocycles || []}
                 rotatedMonths={seasonData.rotatedMonths}
               />
               <MicrocyclesGanttChart
-                microcycles={plan.microcycles}
+                microcycles={plan.microcycles || []}
                 rotatedMonths={seasonData.rotatedMonths}
               />
               <UnitsOfTrainingGanttChart
-                unitsOfTraining={plan.unitsOfTraining}
+                unitsOfTraining={plan.unitsOfTraining || []}
                 rotatedMonths={seasonData.rotatedMonths}
               />
               <TrainingLoadGanttChart
@@ -1331,7 +1473,7 @@
             
             {/* REVISÃO DE DESIGN: Planeadores com Abas */}
             <section className="bg-gray-800 p-3 rounded-lg shadow-md">
-              <h2 className="text-xl font-semibold text-white mb-4 px-1.5">Planeadores</h2>
+              <h2 className="text-xl font-semibold text-white mb-4 px-1.5">Edição do Macrociclo</h2>
               
               {/* Controles das Abas */}
               <div className="flex space-x-1 rounded-lg bg-gray-900 p-1 mb-4">
@@ -1358,28 +1500,28 @@
                 {activePlannerTab === 'periodo' && (
                   <PeriodPlanner
                     periodDefinitions={periodDefinitions}
-                    periods={plan.periods}
+                    periods={plan.periods || []}
                     onPeriodsChange={(newItems) => handlePlanChange('periods', newItems)}
                   />
                 )}
                 {activePlannerTab === 'mesociclo' && (
                   <MesocyclePlanner
                     mesoDefinitions={mesoDefinitions}
-                    mesocycles={plan.mesocycles}
+                    mesocycles={plan.mesocycles || []}
                     onMesocyclesChange={(newItems) => handlePlanChange('mesocycles', newItems)}
                   />
                 )}
                 {activePlannerTab === 'microciclo' && (
                   <MicrocyclePlanner
                     microDefinitions={microDefinitions}
-                    microcycles={plan.microcycles}
+                    microcycles={plan.microcycles || []}
                     onMicrocyclesChange={(newItems) => handlePlanChange('microcycles', newItems)}
                   />
                 )}
                 {activePlannerTab === 'ut' && (
                   <UnitOfTrainingPlanner
-                    microcycles={plan.microcycles} 
-                    unitsOfTraining={plan.unitsOfTraining}
+                    microcycles={plan.microcycles || []} 
+                    unitsOfTraining={plan.unitsOfTraining || []}
                     onUnitsOfTrainingChange={(newItems) => handlePlanChange('unitsOfTraining', newItems)}
                   />
                 )}
