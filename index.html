@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+
 <html lang="pt-PT" class="h-full">
 <head>
   <meta charset="UTF-8">
@@ -19,12 +19,12 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+    import { getDatabase, ref, set, onValue, get, child, remove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
     
     // Tornar as funções do Firebase acessíveis globalmente para o script Babel
     window.FirebaseApp = { initializeApp };
     window.FirebaseAuth = { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged };
-    window.FirebaseDatabase = { getDatabase, ref, set, onValue };
+    window.FirebaseDatabase = { getDatabase, ref, set, onValue, get, child, remove };
   </script>
 
   <style>
@@ -171,12 +171,12 @@
   <!-- 6. O CÓDIGO DA NOSSA APP (colado do .jsx) -->
   <script type="text/babel">
     // Hooks do React
-    const { useState, useMemo, useEffect } = React;
+    const { useState, useMemo, useEffect, useCallback } = React;
     
     // Funções do Firebase (agora lidas da window)
     const { initializeApp } = window.FirebaseApp;
     const { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } = window.FirebaseAuth;
-    const { getDatabase, ref, set, onValue } = window.FirebaseDatabase;
+    const { getDatabase, ref, set, onValue, get, child, remove } = window.FirebaseDatabase;
 
 
     // --- Ícones SVG Inline ---
@@ -221,7 +221,6 @@
         <line x1="6" y1="6" x2="18" y2="18" />
       </svg>
     );
-    // (Ícones para os botões do cabeçalho)
     const DownloadIcon = () => (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
     );
@@ -230,6 +229,16 @@
     );
     const PrintIcon = () => (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+    );
+    // Ícones para o Gestor de Planos
+    const SaveIcon = () => (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13H7v8"/><polyline points="7 3 7 8H15"/></svg>
+    );
+    const OpenIcon = () => (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3h18v18H3zM21 9H3M21 15H3M12 3v18"/></svg>
+    );
+    const FileIcon = () => (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
     );
 
 
@@ -281,7 +290,7 @@
       authDomain: "app-macrociclo.firebaseapp.com",
       databaseURL: "https://app-macrociclo-default-rtdb.europe-west1.firebasedatabase.app", 
       projectId: "app-macrociclo",
-      storageBucket: "app-macrociclo.firebasestorage.app", // Corrigido de volta para o seu original
+      storageBucket: "app-macrociclo.firebasestorage.app", // CORRIGIDO: Voltámos ao seu original
       messagingSenderId: "148841769521",
       appId: "1:148841769521:web:6df606c4b956371e1cc310",
       measurementId: "G-2Y9PM1S6Q2"
@@ -307,7 +316,7 @@
 
     // --- Componentes da UI ---
     
-    function AppHeader({ userId, onImport, onExport, onPrint }) {
+    function AppHeader({ userId, onNew, onOpen, onSaveAs, onExportExcel, onPrint }) {
       const btnCsvDisabled = "button-base-gray button-disabled flex items-center gap-1.5";
       
       return (
@@ -328,14 +337,20 @@
           </div>
           
           {/* BOTÕES ATUALIZADOS */}
-          <button onClick={onImport} className="button-base-gray flex items-center gap-1.5">
-            <UploadIcon /> Abrir Macrociclo (JSON)
+          <button onClick={onNew} className="button-base-gray flex items-center gap-1.5">
+            <FileIcon /> Novo Plano
           </button>
-          <button onClick={onExport} className="button-base-gray flex items-center gap-1.5">
-            <DownloadIcon /> Guardar Macrociclo (JSON)
+          <button onClick={onOpen} className="button-base-gray flex items-center gap-1.5">
+            <OpenIcon /> Abrir / Gerir
           </button>
-          <button className={btnCsvDisabled} disabled title="Utilize Guardar JSON para guardar a estrutura completa">
-            Exportar Excel
+          <button onClick={onSaveAs} className="button-base-gray flex items-center gap-1.5">
+            <SaveIcon /> Guardar Macrociclo (Como...)
+          </button>
+          
+          <span className="h-6 w-px bg-gray-700 hidden md:block"></span>
+          
+          <button onClick={onExportExcel} className="button-base-gray flex items-center gap-1.5">
+            Exportar Excel (UTs)
           </button>
           <button onClick={onPrint} className="button-base-gray flex items-center gap-1.5">
             <PrintIcon /> Exportar PDF / Imprimir
@@ -1035,7 +1050,7 @@
             </div>
             <div>
               <label className="text-[11px] font-medium text-gray-400">Nome da UT (ex: UT1)</label>
-              <input type="text" value={newUtName} onChange={(e) => setNewUtName(e.g.target.value)} className="input-base" placeholder="UT1" />
+              <input type="text" value={newUtName} onChange={(e) => setNewUtName(e.target.value)} className="input-base" placeholder="UT1" />
             </div>
             <div>
               <label className="text-[11px] font-medium text-gray-400">Data da UT</label>
@@ -1048,7 +1063,6 @@
                 onChange={(e) => setNewUtIntensity(e.target.value)}
                 className="input-base text-xs"
               >
-                {/* ESCALA DE INTENSIDADE ATUALIZADA */}
                 <option value="1">1- Fraca 50%</option>
                 <option value="2">2- Baixa 70%</option>
                 <option value="3">3- Média 70-85%</option>
@@ -1089,10 +1103,119 @@
         </div>
       );
     }
+    
+    // NOVO: Componente Modal
+    function Modal({ isOpen, onClose, title, children }) {
+      if (!isOpen) return null;
+      return (
+        <div 
+          className="fixed inset-0 z-50 h-full w-full flex items-center justify-center bg-black bg-opacity-70 p-4"
+          onClick={onClose}
+        >
+          <div 
+            className="w-full max-w-lg bg-gray-800 rounded-2xl shadow-2xl p-6 relative transform scale-100"
+            onClick={(e) => e.stopPropagation()} // Evitar fechar ao clicar dentro do modal
+          >
+            <h3 className="text-2xl font-bold text-white mb-6">{title}</h3>
+            <button 
+              onClick={onClose} 
+              className="absolute top-4 right-4 text-gray-400 hover:text-white text-3xl transition"
+            >
+              &times;
+            </button>
+            {children}
+          </div>
+        </div>
+      );
+    }
+    
+    // NOVO: Componente para o Modal de "Abrir / Gerir Planos"
+    function OpenPlanModal({ isOpen, onClose, onOpenPlan, onDeletePlan, userId }) {
+      const [plans, setPlans] = useState([]); // Lista de planos guardados
+      const [loading, setLoading] = useState(true);
+      const userPlansRef = useMemo(() => {
+        if (!userId) return null;
+        return ref(db, `artifacts/${appId}/users/${userId}/macrociclos`);
+      }, [userId]);
+      
+      useEffect(() => {
+        if (isOpen && userPlansRef) {
+          setLoading(true);
+          // Usar 'get' para buscar a lista uma vez
+          get(userPlansRef).then((snapshot) => {
+            if (snapshot.exists()) {
+              const data = snapshot.val();
+              const planList = Object.keys(data).map(key => ({
+                id: key,
+                name: data[key].planName || 'Plano Sem Nome',
+                // Tentar encontrar uma data de modificação, se não, usar o ID (timestamp)
+                lastModified: data[key].lastModified || new Date(parseInt(key, 10) || Date.now()).toISOString()
+              }));
+              planList.sort((a, b) => new Date(b.lastModified) - new Date(a.lastModified));
+              setPlans(planList);
+            } else {
+              setPlans([]);
+            }
+            setLoading(false);
+          }).catch(error => {
+            console.error("Erro ao buscar lista de planos:", error);
+            setLoading(false);
+          });
+        }
+      }, [isOpen, userPlansRef]);
+      
+      const handleDelete = (planId, planName) => {
+        if (prompt(`Tem a certeza que quer apagar o plano "${planName}"? Esta ação não pode ser revertida. Escreva "apagar" para confirmar.`) === 'apagar') {
+          const planRef = ref(db, `artifacts/${appId}/users/${userId}/macrociclos/${planId}`);
+          remove(planRef).then(() => {
+            setPlans(prev => prev.filter(p => p.id !== planId));
+          }).catch(error => {
+            console.error("Erro ao apagar o plano:", error);
+          });
+        }
+      };
+
+      return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Abrir / Gerir Macrociclos">
+          <div className="max-h-96 overflow-y-auto space-y-2">
+            {loading && <p className="text-gray-400">A carregar planos...</p>}
+            {!loading && plans.length === 0 && (
+              <p className="text-gray-400 text-center p-4">Não tem macrociclos guardados. Use "Guardar Como..." para criar um.</p>
+            )}
+            {!loading && plans.map(plan => (
+              <div key={plan.id} className="flex justify-between items-center p-3 bg-gray-700 rounded-lg">
+                <div>
+                  <p className="text-base font-medium text-white">{plan.name}</p>
+                  <p className="text-xs text-gray-400">
+                    Modificado: {new Date(plan.lastModified).toLocaleString('pt-PT')}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => handleDelete(plan.id, plan.name)} 
+                    className="button-base-gray bg-red-600 hover:bg-red-700 text-xs"
+                  >
+                    Apagar
+                  </button>
+                  <button 
+                    onClick={() => onOpenPlan(plan.id)}
+                    className="button-base-blue text-xs"
+                  >
+                    Abrir
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Modal>
+      );
+    }
 
 
     // --- Definições Iniciais (Estado Padrão) ---
     const DEFAULT_STATE = {
+      planId: null, // ID do plano atual
+      planName: "Novo Plano (Não Guardado)", // Nome do plano atual
       titles: {
         col1: "OBJETIVOS",
         col2: "COMPETIÇÕES",
@@ -1105,7 +1228,6 @@
       events: [],
       seasonYear: new Date().getFullYear(),
       startMonth: 0,
-      // Definições ficam 'hardcoded' agora que a secção de config foi removida
       periodDefinitions: ['Preparatório', 'Competitivo', 'Transição'],
       periods: [],
       mesoDefinitions: ['Base', 'Desenvolvimento', 'Controlo', 'Competição', 'Manutenção'],
@@ -1113,6 +1235,7 @@
       mesocycles: [],
       microcycles: [],
       unitsOfTraining: [],
+      lastModified: new Date().toISOString()
     };
 
 
@@ -1125,35 +1248,28 @@
       const [plan, setPlan] = useState(DEFAULT_STATE);
       const [userId, setUserId] = useState(null);
       const [isLoading, setIsLoading] = useState(true);
+      const [isModalOpen, setIsModalOpen] = useState(false);
       const [activePlannerTab, setActivePlannerTab] = useState('periodo');
       
-      const dbRef = useMemo(() => {
-        if (!userId || !db) return null;
-        return ref(db, `artifacts/${appId}/users/${userId}/planerTkd`);
-      }, [userId]);
+      // Referência para o *plano atual* a ser ouvido
+      const [currentPlanRef, setCurrentPlanRef] = useState(null);
 
 
       // --- Efeitos do Firebase ---
 
       useEffect(() => {
-        if (!auth) {
-          console.log("Firebase Auth não está pronto.");
-          return;
-        }
-        
+        if (!auth) return;
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
           if (user) {
             console.log("Utilizador autenticado:", user.uid);
             setUserId(user.uid);
+            setIsLoading(false); 
           } else {
             console.log("Nenhum utilizador, a tentar autenticar...");
             try {
               const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-              if (token) {
-                await signInWithCustomToken(auth, token);
-              } else {
-                await signInAnonymously(auth);
-              }
+              if (token) await signInWithCustomToken(auth, token);
+              else await signInAnonymously(auth);
             } catch (error) {
               console.error("Erro na autenticação:", error);
               setIsLoading(false);
@@ -1162,35 +1278,22 @@
         });
         return () => unsubscribe();
       }, []);
-
+      
+      // Efeito para carregar dados (onValue)
       useEffect(() => {
-        if (!dbRef) {
+        if (!currentPlanRef) {
           return;
         }
         
-        console.log("A tentar carregar dados da Realtime Database...");
+        console.log("A ouvir o plano:", currentPlanRef.toString());
         setIsLoading(true);
         
-        const unsubscribe = onValue(dbRef, (snapshot) => {
+        const unsubscribe = onValue(currentPlanRef, (snapshot) => {
           if (snapshot.exists()) {
-            console.log("Dados encontrados, a carregar plano...");
-            const data = snapshot.val();
-            // Fundir dados da DB com o default
-            setPlan(prevPlan => ({
-              ...DEFAULT_STATE, // Começar com o default (para o caso de novas definições)
-              ...data, // Sobrescrever com os dados guardados
-              titles: data.titles || DEFAULT_STATE.titles,
-              objectives: data.objectives || [],
-              competitions: data.competitions || [],
-              exams: data.exams || [],
-              events: data.events || [],
-              periods: data.periods || [],
-              mesocycles: data.mesocycles || [],
-              microcycles: data.microcycles || [],
-              unitsOfTraining: data.unitsOfTraining || [],
-            }));
+            console.log("Dados do plano encontrados, a carregar...");
+            setPlan(snapshot.val());
           } else {
-            console.log("Nenhum documento encontrado, a usar estado padrão.");
+            console.log("Documento do plano não encontrado, a usar estado padrão.");
             setPlan(DEFAULT_STATE);
           }
           setIsLoading(false);
@@ -1199,24 +1302,25 @@
           setIsLoading(false);
         });
         
-        return () => unsubscribe();
-      }, [dbRef]);
+        return () => {
+          console.log("A parar de ouvir o plano.");
+          unsubscribe();
+        };
+      }, [currentPlanRef]);
 
-      // Debounce para guardar dados
+      // Efeito para guardar dados (set)
       useEffect(() => {
-        if (isLoading || !dbRef) {
+        if (isLoading || !currentPlanRef) {
           return;
         }
-        
-        // Não guardar se o plano for idêntico ao estado inicial
-        if (JSON.stringify(plan) === JSON.stringify(DEFAULT_STATE)) {
-           // console.log("A evitar guardar o estado padrão.");
+        if (JSON.stringify(plan) === JSON.stringify(DEFAULT_STATE) && !plan.planId) {
            return;
         }
         
         const handler = setTimeout(() => {
           console.log("A guardar na Realtime Database...");
-          set(dbRef, plan)
+          const dataToSave = {...plan, lastModified: new Date().toISOString()};
+          set(currentPlanRef, dataToSave)
             .then(() => {
               console.log("Plano guardado com sucesso!");
             })
@@ -1225,14 +1329,11 @@
             });
         }, 1500); 
 
-        return () => {
-          clearTimeout(handler);
-        };
-      }, [plan, dbRef, isLoading]);
+        return () => clearTimeout(handler);
+      }, [plan, currentPlanRef, isLoading]);
 
 
       // --- Funções de "Set" para o estado ---
-      
       const handlePlanChange = (key, value) => {
         setPlan(prevPlan => ({ ...prevPlan, [key]: value }));
       };
@@ -1243,53 +1344,99 @@
           titles: { ...prevPlan.titles, [colKey]: newTitle }
         }));
       };
-
-      // --- Funções de Import/Export/Print (NOVAS) ---
       
-      const handleExport = () => {
-        try {
-          const jsonString = JSON.stringify(plan);
-          const blob = new Blob([jsonString], { type: "application/json" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `macrociclo_${new Date().toISOString().split('T')[0]}.json`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        } catch (error) {
-          console.error("Erro ao exportar JSON:", error);
+      // --- Funções de Gestão de Planos ---
+      
+      const handleNewPlan = () => {
+        if (prompt('Tem a certeza que quer criar um novo plano? O seu plano atual será guardado, mas será substituído por um plano em branco. Escreva "novo" para confirmar.') === 'novo') {
+          setCurrentPlanRef(null);
+          setPlan(DEFAULT_STATE);
+          console.log("Novo plano criado (em memória). Use 'Guardar Como' para o persistir.");
         }
       };
-
-      const handleImport = () => {
-        const fileInput = document.getElementById('import-file-input');
+      
+      const handleOpenModal = () => setIsModalOpen(true);
+      const handleCloseModal = () => setIsModalOpen(false);
+      
+      const handleOpenPlan = (planId) => {
+        if (!userId) return;
+        console.log(`A abrir plano com ID: ${planId}`);
+        const newRef = ref(db, `artifacts/${appId}/users/${userId}/macrociclos/${planId}`);
+        setCurrentPlanRef(newRef); // Isto irá ativar o useEffect de 'onValue'
+        handleCloseModal();
+      };
+      
+      const handleDeletePlan = (planId, planName) => {
+        // Esta função agora é passada para o Modal
+        if (plan.planId === planId) {
+           setCurrentPlanRef(null);
+           setPlan(DEFAULT_STATE);
+        }
+      };
+      
+      const handleSaveAs = () => {
+        const newPlanName = prompt("Qual é o nome para este novo Macrociclo?", plan.planName || "Novo Macrociclo");
+        if (!newPlanName || !userId) return;
         
-        fileInput.onchange = null; // Limpar listener antigo
-        fileInput.onchange = (e) => {
-          const file = e.target.files[0];
-          if (!file) return;
-          
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            try {
-              const importedData = JSON.parse(event.target.result);
-              if (importedData && importedData.seasonYear && importedData.titles) {
-                // Fundir com o default para garantir que todas as chaves existem
-                setPlan({...DEFAULT_STATE, ...importedData});
-                console.log("Plano importado com sucesso.");
-              } else {
-                throw new Error("Ficheiro JSON inválido ou não é um ficheiro de macrociclo.");
-              }
-            } catch (error) {
-              console.error("Erro ao importar JSON:", error);
-            }
-          };
-          reader.readAsText(file);
+        const newPlanId = Date.now().toString();
+        const newRef = ref(db, `artifacts/${appId}/users/${userId}/macrociclos/${newPlanId}`);
+        
+        const newData = {
+          ...plan,
+          planName: newPlanName,
+          planId: newPlanId, 
+          lastModified: new Date().toISOString()
         };
         
-        fileInput.click();
+        setCurrentPlanRef(null);
+        set(newRef, newData)
+          .then(() => {
+            console.log("Plano guardado com sucesso em 'Guardar Como'.");
+            setPlan(newData);
+            setCurrentPlanRef(newRef);
+          })
+          .catch(error => console.error("Erro em 'Guardar Como':", error));
+      };
+
+      // --- Funções de Exportação ---
+      
+      const handleExportExcel = () => {
+        const safeUnits = Array.isArray(plan.unitsOfTraining) ? plan.unitsOfTraining : [];
+        if (safeUnits.length === 0) {
+          alert("Não há Unidades de Treino para exportar.");
+          return;
+        }
+
+        const safeMicros = Array.isArray(plan.microcycles) ? plan.microcycles : [];
+        
+        let csvContent = "data:text/csv;charset=utf-8,";
+        csvContent += "Data,Nome UT,Microciclo (Nº),Tipo de Microciclo,Intensidade,Duração (min),Carga Total\n";
+        
+        safeUnits.forEach(ut => {
+          const parentMicro = safeMicros.find(m => m.id === ut.microcycleId);
+          const microNum = parentMicro ? parentMicro.number : 'N/A';
+          const microType = parentMicro ? parentMicro.type : 'N/A';
+          const load = (ut.intensity || 0) * (ut.duration || 0);
+          
+          const row = [
+            formatDate(ut.date),
+            ut.name,
+            microNum,
+            `"${microType.replace(/"/g, '""')}"`, // Tratar aspas
+            ut.intensity,
+            ut.duration,
+            load
+          ].join(",");
+          csvContent += row + "\r\n";
+        });
+        
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `export_uts_${plan.planName || 'plano'}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       };
       
       const handlePrint = () => {
@@ -1376,13 +1523,15 @@
           <div className="max-w-7xl mx-auto space-y-3">
             <AppHeader 
               userId={userId}
-              onImport={handleImport}
-              onExport={handleExport}
+              onNew={handleNewPlan}
+              onOpen={handleOpenModal}
+              onSaveAs={handleSaveAs}
+              onExportExcel={handleExportExcel}
               onPrint={handlePrint}
             />
 
             <section className="bg-gray-800 p-3 rounded-lg shadow-md">
-              <div className="flex justify-between items-center mb-3">
+              <div className="flex justify-between items-center mb-1">
                 <h2 className="text-lg font-semibold text-white">Temporada</h2>
                 <div className="flex gap-4">
                   <div>
@@ -1410,6 +1559,8 @@
                   </div>
                 </div>
               </div>
+              <p className="text-xs text-gray-400 mb-3 ml-1">Plano Ativo: <span className="font-semibold text-gray-200">{plan.planName || "Sem nome"}</span></p>
+
               
               <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-4 gap-3">
                 <EventColumn
@@ -1439,7 +1590,6 @@
               </div>
             </section>
 
-            {/* REVISÃO DE DESIGN: Linhas temporais agrupadas */}
             <section id="timeline-panel-print" className="space-y-3 bg-gray-800 p-3 rounded-lg shadow-md">
               <h2 className="text-xl font-semibold text-white mb-4 px-1.5">Painel de Linhas Temporais</h2>
               
@@ -1471,11 +1621,9 @@
               />
             </section>
             
-            {/* REVISÃO DE DESIGN: Planeadores com Abas */}
             <section className="bg-gray-800 p-3 rounded-lg shadow-md">
               <h2 className="text-xl font-semibold text-white mb-4 px-1.5">Edição do Macrociclo</h2>
               
-              {/* Controles das Abas */}
               <div className="flex space-x-1 rounded-lg bg-gray-900 p-1 mb-4">
                 {['periodo', 'mesociclo', 'microciclo', 'ut'].map(tab => {
                   const isActive = activePlannerTab === tab;
@@ -1495,7 +1643,6 @@
                 })}
               </div>
 
-              {/* Conteúdo das Abas */}
               <div className="mt-2">
                 {activePlannerTab === 'periodo' && (
                   <PeriodPlanner
@@ -1529,6 +1676,15 @@
             </section>
 
           </div>
+          
+          <OpenPlanModal
+            isOpen={isModalOpen}
+            onClose={handleCloseModal}
+            onOpenPlan={handleOpenPlan}
+            onDeletePlan={handleDeletePlan} // Passar a função para o modal
+            userId={userId}
+          />
+          
         </div>
       );
     }
