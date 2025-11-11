@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+>
 <html lang="pt-PT" class="h-full">
 <head>
   <meta charset="UTF-8">
@@ -18,16 +18,16 @@
   <!-- 4. Carregar Firebase (SDKs individuais) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getDatabase } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
     
     window.FirebaseApp = { initializeApp };
-    window.FirebaseAuth = { getAuth };
-    window.FirebaseDatabase = { getDatabase };
+    window.FirebaseAuth = { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged };
+    window.FirebaseDatabase = { getDatabase, ref, set, onValue };
   </script>
 
   <style>
-    /* Estilos Globais (inalterados) */
+    /* Estilos Globais */
     body { 
       background-color: #111827;
       font-family: 'Inter', sans-serif;
@@ -63,7 +63,7 @@
     .button-base-blue:hover {
       background-color: #1D4ED8;
     }
-    /* Estilos de cores (inalterados) */
+    /* Estilos de cores */
     .border-blue-400 { border-color: #60A5FA; }
     .text-blue-400 { color: #60A5FA; }
     .border-red-400 { border-color: #F87171; }
@@ -90,7 +90,7 @@
     const { getDatabase, ref, set, onValue } = window.FirebaseDatabase;
 
 
-    // --- Ícones SVG Inline (inalterado) ---
+    // --- Ícones SVG Inline ---
     const PlusIcon = () => (
       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <line x1="12" y1="5" x2="12" y2="19" />
@@ -133,7 +133,7 @@
       </svg>
     );
 
-    // --- Funções Utilitárias Globais (inalterado) ---
+    // --- Funções Utilitárias Globais ---
     const formatDate = (dateString) => {
       if (!dateString) return 'N/A';
       try {
@@ -176,7 +176,7 @@
     // --- Configuração do Firebase ---
     
     // !!! O SEU CÓDIGO PESSOAL FOI COLADO AQUI !!!
-    // (Com as minhas correções para databaseURL e storageBucket)
+    // (Com a CORREÇÃO para o storageBucket)
     const firebaseConfig = {
       apiKey: "AIzaSyADpB-lz2L2Wgbz95c3qvxicnOyp2vZIX0",
       authDomain: "app-macrociclo.firebaseapp.com",
@@ -186,8 +186,8 @@
       
       projectId: "app-macrociclo",
       
-      // CORRIGIDO: O formato do storageBucket
-      storageBucket: "app-macrociclo.appspot.com", 
+      // CORRIGIDO: De volta ao valor que você forneceu
+      storageBucket: "app-macrociclo.firebasestorage.app", 
       
       messagingSenderId: "148841769521",
       appId: "1:148841769521:web:6df606c4b956371e1cc310",
@@ -212,7 +212,7 @@
     }
 
 
-    // --- Componentes da UI (Todos inalterados) ---
+    // --- Componentes da UI ---
     function AppHeader({ userId }) {
       const btnDisabled = "px-2 py-1 text-xs bg-gray-800 text-gray-500 rounded-md cursor-not-allowed flex items-center gap-1.5";
       return (
@@ -260,6 +260,8 @@
           date: newDate,
         };
         onItemsChange([...(items || []), newItem]);
+        setNewDesc('');
+        setNewDate('');
       };
 
       const handleRemove = (id) => {
@@ -971,8 +973,7 @@
                   <button onClick={() => handleRemoveUt(ut.id)} className="group text-left"><TrashIcon /></button>
                 </div>
               );
-Doption>
-            ))}
+            })}
           </div>
         </div>
       );
@@ -981,7 +982,12 @@ Doption>
 
     // --- Definições Iniciais (Estado Padrão) ---
     const DEFAULT_STATE = {
-      titles: { col1: "OBJETIVOS", col2: "COMPETIÇÕES", col3: "EXAMES DE GRADUAÇÃO", col4: "EVENTOS" },
+      titles: {
+        col1: "OBJETIVOS",
+        col2: "COMPETIÇÕES",
+        col3: "EXAMES DE GRADUAÇÃO",
+        col4: "EVENTOS",
+      },
       objectives: [],
       competitions: [],
       exams: [],
@@ -1003,6 +1009,7 @@ Doption>
      */
     function App() {
       const monthNames = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"];
+      
       const [plan, setPlan] = useState(DEFAULT_STATE);
       const [userId, setUserId] = useState(null);
       const [isLoading, setIsLoading] = useState(true);
@@ -1019,22 +1026,21 @@ Doption>
       useEffect(() => {
         if (!auth) {
           console.log("Firebase Auth não está pronto.");
-          setIsLoading(false);
           return;
         }
+        
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
           if (user) {
             console.log("Utilizador autenticado:", user.uid);
             setUserId(user.uid);
           } else {
-            console.log("Nenhum utilizador, a tentar autenticar anonimamente...");
+            console.log("Nenhum utilizador, a tentar autenticar...");
             try {
-              // Tenta autenticar (primeiro com token, depois anônimo)
               const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
               if (token) {
-                 await signInWithCustomToken(auth, token);
+                await signInWithCustomToken(auth, token);
               } else {
-                 await signInAnonymously(auth);
+                await signInAnonymously(auth);
               }
             } catch (error) {
               console.error("Erro na autenticação:", error);
@@ -1045,7 +1051,7 @@ Doption>
         return () => unsubscribe();
       }, []);
 
-      // Passo 2: Carregar Dados (MUDANÇA: de onSnapshot para onValue)
+      // Passo 2: Carregar Dados
       useEffect(() => {
         if (!dbRef) {
           return;
@@ -1083,13 +1089,16 @@ Doption>
         return () => unsubscribe();
       }, [dbRef]);
 
-      // Passo 3: Guardar Dados (MUDANÇA: de setDoc para set)
+      // Passo 3: Guardar Dados
       useEffect(() => {
         if (isLoading || !dbRef) {
           return;
         }
         
-        if (plan === DEFAULT_STATE) return;
+        if (plan === DEFAULT_STATE && userId) {
+             const hasLoaded = Object.keys(plan).some(key => Array.isArray(plan[key]) && plan[key].length > 0);
+             if (!hasLoaded) return;
+        }
 
         const handler = setTimeout(() => {
           console.log("A guardar na Realtime Database...");
@@ -1105,10 +1114,10 @@ Doption>
         return () => {
           clearTimeout(handler);
         };
-      }, [plan, dbRef, isLoading]);
+      }, [plan, dbRef, isLoading, userId]);
 
 
-      // --- Funções de "Set" para o estado (inalterado) ---
+      // --- Funções de "Set" para o estado ---
       
       const handlePlanChange = (key, value) => {
         setPlan(prevPlan => ({ ...prevPlan, [key]: value }));
@@ -1121,7 +1130,7 @@ Doption>
         }));
       };
 
-      // --- Memos de Cálculo (Performance, etc.) (inalterado) ---
+      // --- Memos de Cálculo (Performance, etc.) ---
       
       const seasonData = useMemo(() => {
         const rotatedMonths = [];
@@ -1180,7 +1189,6 @@ Doption>
       }, [plan.objectives, plan.competitions, plan.exams, plan.events]);
       
 
-      // Ecrã de Carregamento
       if (isLoading) {
         return (
           <div className="flex justify-center items-center min-h-screen bg-gray-900 text-gray-400">
@@ -1189,14 +1197,12 @@ Doption>
         );
       }
       
-      // Renderização Principal
       return (
         <div className="bg-gray-900 min-h-screen p-3 md:p-6 text-gray-200 font-sans">
           
           <div className="max-w-7xl mx-auto space-y-3">
             <AppHeader userId={userId} />
 
-            {/* Secção 1: Temporada (Eventos) */}
             <section className="bg-gray-800 p-3 rounded-lg shadow-md">
               <div className="flex justify-between items-center mb-3">
                 <h2 className="text-lg font-semibold text-white">Temporada</h2>
@@ -1255,7 +1261,6 @@ Doption>
               </div>
             </section>
 
-            {/* Secção 2: Linha Temporal (Meses e Períodos) */}
             <section className="space-y-3">
               <MonthsTimeline rotatedMonths={seasonData.rotatedMonths} />
               <EventsDescriptionRow rotatedMonths={seasonData.rotatedMonths} events={allEvents} />
@@ -1294,4 +1299,39 @@ Doption>
             </section>
             
             <section>
-              <Mesoc
+              <MesocyclePlanner
+                mesoDefinitions={plan.mesoDefinitions}
+                mesocycles={plan.mesocycles}
+                onMesocyclesChange={(newItems) => handlePlanChange('mesocycles', newItems)}
+              />
+            </section>
+            
+            <section>
+              <MicrocyclePlanner
+                microDefinitions={plan.microDefinitions}
+                microcycles={plan.microcycles}
+                onMicrocyclesChange={(newItems) => handlePlanChange('microcycles', newItems)}
+              />
+            </section>
+            
+            <section>
+              <UnitOfTrainingPlanner
+                microcycles={plan.microcycles} 
+                unitsOfTraining={plan.unitsOfTraining}
+                onUnitsOfTrainingChange={(newItems) => handlePlanChange('unitsOfTraining', newItems)}
+              />
+            </section>
+
+          </div>
+        </div>
+      );
+    }
+    
+    // --- Renderizar a App ---
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+    
+  </script>
+
+</body>
+</html>
